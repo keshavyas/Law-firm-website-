@@ -1,0 +1,73 @@
+version: '3.9'
+
+services:
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: case_db
+    environment:
+      POSTGRES_DB:       case_db
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: ${DB_PASS:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - democase
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U postgres -d case_db"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context:    ./backend
+      dockerfile: Dockerfile
+    container_name: democase_backend
+    environment:
+      NODE_ENV:     production
+      PORT:         3001
+      HOST:         0.0.0.0
+      DATABASE_URL: postgres://postgres:${DB_PASS:-password}@postgres:5432/case_db
+      JWT_SECRET:   ${JWT_SECRET:-change_this_in_production_min_32_chars}
+      JWT_EXPIRES_IN: 7d
+      BCRYPT_ROUNDS:  10
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "3001:3001"
+    networks:
+      - democase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:     ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/health || exit 1"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context:    ./caseR
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    container_name: democase_frontend
+    ports:
+      - "80:80"
+    networks:
+      - democase
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+networks:
+  democase:
+    driver: bridge
