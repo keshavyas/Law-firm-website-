@@ -7,6 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
     "db:migrate": "node src/config/migrate.js",
     "db:migrate:undo": "node src/config/migrate.js undo",
     "db:seed": "node src/config/seed.js",

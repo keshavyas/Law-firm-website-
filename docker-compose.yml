@@ -57,7 +57,7 @@ services:
         VITE_API_URL: ""
     container_name: democase_frontend
     ports:
-      - "80:80"
+      - "80:5173"
     networks:
       - democase
     depends_on:

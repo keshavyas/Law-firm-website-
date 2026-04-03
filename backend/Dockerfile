@@ -8,6 +8,7 @@ RUN npm ci --only=production
 FROM node:18-alpine AS runner
 RUN addgroup --system --gid 1001 nodejs && \
     adduser  --system --uid 1001 nodeuser
+RUN apk add --no-cache wget curl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY src/ ./src/
