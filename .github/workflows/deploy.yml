@@ -1,82 +1,133 @@
-name: CI/CD Deploy (Frontend + Backend)
+name: CI/CD Production Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
-
     steps:
-      # ✅ 1. Checkout code
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      # ✅ 2. Debug folder structure (VERY IMPORTANT)
-      - name: Verify project structure
-        run: |
-          echo "Listing root files..."
-          ls -la
-          echo "Listing backend..."
-          ls -la backend || echo "❌ backend folder missing"
-          echo "Listing frontend..."
-          ls -la frontend || echo "❌ frontend folder missing"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # ✅ 3. Docker login
       - name: Login to DockerHub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # ✅ 4. Build Backend (STRICT CHECK)
-      - name: Build Backend Image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest ./backend
+      # ✅ Build & Push Backend
+      - name: Build/Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # ✅ 5. Push Backend
-      - name: Push Backend Image
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest
+      # ✅ Build & Push Frontend (Passes VITE_API_URL Build Arg)
+      - name: Build/Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./caseR
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
+          build-args: |
+             VITE_API_URL=""
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # ✅ 6. Build Frontend
-      - name: Build Frontend Image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest ./frontend
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      # ✅ 7. Push Frontend
-      - name: Push Frontend Image
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
-
-      # ✅ 8. Deploy to EC2
-      - name: Deploy on EC2
+      - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST
           script: |
-            echo "🚀 Pull latest images"
-            docker pull ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest
-            docker pull ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
+            mkdir -p ~/Law-firm-website-
+            cd ~/Law-firm-website-
+            
+            # 🔥 Re-create docker-compose.yml on host (keeps it in sync)
+            cat <<EOF > docker-compose.yml
+            version: '3.9'
+            services:
+              db:
+                image: postgres:15-alpine
+                container_name: case_db
+                environment:
+                  POSTGRES_DB: case_db
+                  POSTGRES_USER: postgres
+                  POSTGRES_PASSWORD: \${DB_PASS}
+                volumes:
+                  - postgres_data:/var/lib/postgresql/data
+                networks:
+                  - democase
+                healthcheck:
+                  test: ["CMD-SHELL", "pg_isready -U postgres -d case_db"]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 10
+                restart: unless-stopped
 
-            echo "🛑 Stop old containers"
-            docker stop democase_backend || true
-            docker rm democase_backend || true
-            docker stop democase_frontend || true
-            docker rm democase_frontend || true
+              backend:
+                image: \${DOCKER_USERNAME}/democase_backend:latest
+                container_name: democase_backend
+                environment:
+                  NODE_ENV: production
+                  PORT: 3001
+                  HOST: 0.0.0.0
+                  DATABASE_URL: postgres://postgres:\${DB_PASS}@db:5432/case_db
+                  JWT_SECRET: \${JWT_SECRET}
+                  FRONTEND_URL: http://\${EC2_HOST}
+                ports:
+                  - "3001:3001"
+                networks:
+                  - democase
+                depends_on:
+                  db:
+                    condition: service_healthy
+                restart: unless-stopped
 
-            echo "🚀 Start backend"
-            docker run -d \
-              -p 3001:3001 \
-              --env-file .env \
-              --name democase_backend \
-              ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest
+              frontend:
+                image: \${DOCKER_USERNAME}/democase_frontend:latest
+                container_name: democase_frontend
+                ports:
+                  - "80:80"
+                networks:
+                  - democase
+                depends_on:
+                  backend:
+                    condition: service_started
+                restart: unless-stopped
 
-            echo "🚀 Start frontend"
-            docker run -d \
-              -p 80:80 \
-              --name democase_frontend \
-              ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
-
-            echo "✅ Deployment complete"
+            volumes:
+              postgres_data:
+            networks:
+              democase:
+                driver: bridge
+            EOF
+            
+            # 🚀 Pull latest and Restart
+            sudo docker-compose pull
+            sudo docker-compose up -d
+            
+            # 🧹 Cleanup
+            sudo docker image prune -f
