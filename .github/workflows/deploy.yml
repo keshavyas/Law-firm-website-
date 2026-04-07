@@ -7,7 +7,7 @@ on:
   workflow_dispatch:      # also allows manual run from GitHub UI
 
 env:
-  AWS_REGION: ap-south-1
+  AWS_REGION: eu-north-1
   ECR_REPO:   democase     # must match your ECR repo prefix
 
 jobs:
