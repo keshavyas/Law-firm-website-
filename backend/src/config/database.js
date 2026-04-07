@@ -25,11 +25,11 @@ if (process.env.DATABASE_URL) {
 
 } else {
   sequelize = new Sequelize(
-    process.env.DB_NAME || 'democase_db',
+    process.env.DB_NAME || 'case_db',
     process.env.DB_USER || 'postgres',
-    process.env.DB_PASS || 'password',
+    process.env.DB_PASS || 'postgres',
     {
-      host:    process.env.DB_HOST || 'localhost',
+      host:    process.env.DB_HOST || 'db',
       port:    parseInt(process.env.DB_PORT) || 5432,
       dialect: 'postgres',
       logging: process.env.NODE_ENV === 'development'
@@ -41,13 +41,26 @@ if (process.env.DATABASE_URL) {
 }
 
 export async function testConnection() {
-  try {
-    await sequelize.authenticate();
-    console.log('   Postgres connection established');
-    return true;
-  } catch (err) {
-    console.error('  Cannot connect to Postgres:', err.message);
-    return false;
+  const MAX_RETRIES = 5;
+  let attempts      = 0;
+
+  while (attempts < MAX_RETRIES) {
+    try {
+      await sequelize.authenticate();
+      console.log('   Postgres connection established');
+      return true;
+    } catch (err) {
+      attempts++;
+      console.error(`  [Attempt ${attempts}/${MAX_RETRIES}] Cannot connect to Postgres: ${err.message}`);
+      
+      if (attempts < MAX_RETRIES) {
+        console.log('  Retrying in 2s...');
+        await new Promise(res => setTimeout(res, 2000));
+      } else {
+        console.error('  Max retries reached. Giving up.');
+        return false;
+      }
+    }
   }
 }
 

@@ -1,4 +1,9 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
+// When `VITE_API_URL` is intentionally set to an empty string we want
+// to use relative URLs (so the app can call `/api/...` and let nginx proxy).
+// Default to empty string so the app uses relative paths by default.
+const BASE_URL = import.meta.env.VITE_API_URL !== undefined
+  ? import.meta.env.VITE_API_URL
+  : '';
 const TOKEN_KEY = 'democase_token';
 const USER_KEY  = 'democase_user';
 
@@ -34,7 +39,7 @@ async function request(path, options = {}) {
     ...options.headers, // allow override
   };
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers,
   });
