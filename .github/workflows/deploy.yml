@@ -1,150 +1,82 @@
-
-name: CI/CD — Build and Deploy
+name: CI/CD Deploy (Frontend + Backend)
 
 on:
   push:
-    branches: [main]      # runs automatically on push to main
-  workflow_dispatch:      # also allows manual run from GitHub UI
-
-env:
-  AWS_REGION: eu-north-1
-  ECR_REPO:   democase     # must match your ECR repo prefix
+    branches:
+      - main
 
 jobs:
-
-  # ════════════════════════════════════════════════════════════
-  # JOB 1 — TEST
-  # Checks that code syntax is valid before building images
-  # ════════════════════════════════════════════════════════════
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node 18
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Check syntax
-        working-directory: backend
-        run: |
-          node --check src/server.js
-          node --check src/app.js
-          echo "✅ Syntax check passed"
-
-
-  # ════════════════════════════════════════════════════════════
-  # JOB 2 — BUILD AND PUSH TO ECR
-  # Builds Docker images and pushes to AWS ECR registry
-  # Only runs if Job 1 (test) passes
-  # ════════════════════════════════════════════════════════════
-  build:
-    name: Build and Push
-    runs-on: ubuntu-latest
-    needs: test             # waits for test job to pass first
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push backend image
-        env:
-          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-        run: |
-          echo "Building backend image..."
-          docker build -t $REGISTRY/$ECR_REPO/backend:latest ./backend
-          docker push    $REGISTRY/$ECR_REPO/backend:latest
-          echo "✅ Backend image pushed to ECR"
-
-      - name: Build and push frontend image
-        env:
-          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-        run: |
-          echo "Building frontend image..."
-          docker build -t $REGISTRY/$ECR_REPO/frontend:latest ./frontend
-          docker push    $REGISTRY/$ECR_REPO/frontend:latest
-          echo "✅ Frontend image pushed to ECR"
-
-
-  # ════════════════════════════════════════════════════════════
-  # JOB 3 — DEPLOY TO EC2
-  # SSHs into your EC2 server, pulls new images, restarts
-  # Only runs if Job 2 (build) passes
-  # ════════════════════════════════════════════════════════════
   deploy:
-    name: Deploy to EC2
     runs-on: ubuntu-latest
-    needs: build            # waits for build job to pass first
 
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+      # ✅ 1. Checkout code
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      - name: Login to Amazon ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: SSH into EC2 and deploy
-        uses: appleboy/ssh-action@v1
-        with:
-          host:     ${{ secrets.EC2_HOST }}
-          username: ec2-user
-          key:      ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            echo "=== Starting deployment on EC2 ==="
-
-            # Login to ECR from EC2
-            aws ecr get-login-password --region ap-south-1 | \
-              docker login --username AWS --password-stdin \
-              ${{ steps.ecr-login.outputs.registry }}
-
-            # Navigate to app directory
-            cd ~/lexcase
-
-            # Pull the latest images from ECR
-            echo "Pulling new images..."
-            docker compose -f docker-compose.prod.yml pull backend frontend
-
-            # Restart only backend and frontend
-            # (NOT postgres — avoids losing any database data)
-            echo "Restarting containers..."
-            docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend
-
-            # Wait for containers to start
-            sleep 15
-
-            # Verify deployment worked
-            echo "Checking health..."
-            curl -f http://localhost/health
-            echo ""
-            echo "=== Deployment successful ==="
-
-      - name: Print live URL
+      # ✅ 2. Debug folder structure (VERY IMPORTANT)
+      - name: Verify project structure
         run: |
-          echo "✅ Live at: http://${{ secrets.EC2_HOST }}"
-          echo "✅ Health:  http://${{ secrets.EC2_HOST }}/health"
+          echo "Listing root files..."
+          ls -la
+          echo "Listing backend..."
+          ls -la backend || echo "❌ backend folder missing"
+          echo "Listing frontend..."
+          ls -la frontend || echo "❌ frontend folder missing"
+
+      # ✅ 3. Docker login
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      # ✅ 4. Build Backend (STRICT CHECK)
+      - name: Build Backend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest ./backend
+
+      # ✅ 5. Push Backend
+      - name: Push Backend Image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest
+
+      # ✅ 6. Build Frontend
+      - name: Build Frontend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest ./frontend
+
+      # ✅ 7. Push Frontend
+      - name: Push Frontend Image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
+
+      # ✅ 8. Deploy to EC2
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "🚀 Pull latest images"
+            docker pull ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
+
+            echo "🛑 Stop old containers"
+            docker stop democase_backend || true
+            docker rm democase_backend || true
+            docker stop democase_frontend || true
+            docker rm democase_frontend || true
+
+            echo "🚀 Start backend"
+            docker run -d \
+              -p 3001:3001 \
+              --env-file .env \
+              --name democase_backend \
+              ${{ secrets.DOCKER_USERNAME }}/democase_backend:latest
+
+            echo "🚀 Start frontend"
+            docker run -d \
+              -p 80:80 \
+              --name democase_frontend \
+              ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
+
+            echo "✅ Deployment complete"
