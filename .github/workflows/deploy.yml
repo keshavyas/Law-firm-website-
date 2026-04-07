@@ -8,7 +8,7 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  ECR_REPO:   lexcase     # must match your ECR repo prefix
+  ECR_REPO:   democase     # must match your ECR repo prefix
 
 jobs:
 
