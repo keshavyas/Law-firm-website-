@@ -41,7 +41,7 @@ jobs:
       # ✅ 6. Build Frontend
       - name: Build Frontend Image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest ./frontend
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest ./caseR
 
       # ✅ 7. Push Frontend
       - name: Push Frontend Image
