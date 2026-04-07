@@ -30,7 +30,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ✅ Build & Push Frontend (Passes VITE_API_URL Build Arg)
+      # ✅ Build & Push Frontend
       - name: Build/Push Frontend
         uses: docker/build-push-action@v5
         with:
@@ -46,27 +46,21 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DB_PASS: ${{ secrets.DB_PASS }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          # ✅ Pass exact secrets to the script
           envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST
           script: |
             mkdir -p ~/Law-firm-website-
             cd ~/Law-firm-website-
             
-            # 🔥 Re-create docker-compose.yml on host (keeps it in sync)
-            cat <<EOF > docker-compose.yml
+            # 🔥 Generate the docker-compose.yml on the host
+            # Using cat << 'EOF' (with quotes) to prevent shell expansion of variables on the runner
+            cat << 'EOF' > docker-compose.yml
             version: '3.9'
             services:
               db:
@@ -75,7 +69,7 @@ jobs:
                 environment:
                   POSTGRES_DB: case_db
                   POSTGRES_USER: postgres
-                  POSTGRES_PASSWORD: \${DB_PASS}
+                  POSTGRES_PASSWORD: ${DB_PASS}
                 volumes:
                   - postgres_data:/var/lib/postgresql/data
                 networks:
@@ -88,15 +82,15 @@ jobs:
                 restart: unless-stopped
 
               backend:
-                image: \${DOCKER_USERNAME}/democase_backend:latest
+                image: ${DOCKER_USERNAME}/democase_backend:latest
                 container_name: democase_backend
                 environment:
                   NODE_ENV: production
                   PORT: 3001
                   HOST: 0.0.0.0
-                  DATABASE_URL: postgres://postgres:\${DB_PASS}@db:5432/case_db
-                  JWT_SECRET: \${JWT_SECRET}
-                  FRONTEND_URL: http://\${EC2_HOST}
+                  DATABASE_URL: postgres://postgres:${DB_PASS}@db:5432/case_db
+                  JWT_SECRET: ${JWT_SECRET}
+                  FRONTEND_URL: http://${EC2_HOST}
                 ports:
                   - "3001:3001"
                 networks:
@@ -107,7 +101,7 @@ jobs:
                 restart: unless-stopped
 
               frontend:
-                image: \${DOCKER_USERNAME}/democase_frontend:latest
+                image: ${DOCKER_USERNAME}/democase_frontend:latest
                 container_name: democase_frontend
                 ports:
                   - "80:80"
@@ -125,9 +119,14 @@ jobs:
                 driver: bridge
             EOF
             
-            # 🚀 Pull latest and Restart
+            # 🚀 Pulll and Restart
+            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            export DB_PASS=${{ secrets.DB_PASS }}
+            export JWT_SECRET=${{ secrets.JWT_SECRET }}
+            export EC2_HOST=${{ secrets.EC2_HOST }}
+            
             sudo docker-compose pull
             sudo docker-compose up -d
             
-            # 🧹 Cleanup
+            # 🧹 Cleanup old images to prevent disk issues
             sudo docker image prune -f
