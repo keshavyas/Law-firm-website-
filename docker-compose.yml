@@ -5,6 +5,7 @@ services:
   db:
     image: postgres:15-alpine
     container_name: case_db
+    hostname: db
     environment:
       POSTGRES_DB:       case_db
       POSTGRES_USER:     postgres
@@ -32,6 +33,10 @@ services:
       NODE_ENV:       production
       PORT:           3001
       HOST:           0.0.0.0
+      DB_HOST:        db
+      DB_PORT:        5432
+      DB_USER:        postgres
+      DB_NAME:        case_db
       DATABASE_URL:   postgres://postgres:${DB_PASS:-keshav}@db:5432/case_db
       JWT_SECRET:     ${JWT_SECRET:-change_this_in_production_min_32_chars}
       JWT_EXPIRES_IN: 7d
