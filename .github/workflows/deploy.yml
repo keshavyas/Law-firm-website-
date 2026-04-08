@@ -73,6 +73,7 @@ jobs:
               db:
                 image: postgres:15-alpine
                 container_name: case_db
+                hostname: db
                 environment:
                   POSTGRES_DB: case_db
                   POSTGRES_USER: postgres
