@@ -87,14 +87,15 @@ jobs:
                 container_name: democase_backend
                 environment:
                   NODE_ENV: production
+                  NODE_OPTIONS: --dns-result-order=ipv4first
                   PORT: 3001
                   HOST: 0.0.0.0
-                  DB_HOST: db
+                  DB_HOST: case_db
                   DB_PORT: 5432
                   DB_USER: postgres
                   DB_NAME: case_db
                   DB_PASS: $DB_PASS
-                  DATABASE_URL: postgres://postgres:$DB_PASS@db:5432/case_db
+                  DATABASE_URL: postgres://postgres:$DB_PASS@case_db:5432/case_db
                   JWT_SECRET: $JWT_SECRET
                   FRONTEND_URL: http://$EC2_HOST
                 ports:

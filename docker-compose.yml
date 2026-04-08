@@ -31,6 +31,7 @@ services:
     container_name: democase_backend
     environment:
       NODE_ENV:       production
+      NODE_OPTIONS:   --dns-result-order=ipv4first
       PORT:           3001
       HOST:           0.0.0.0
       DB_HOST:        db
