@@ -46,20 +46,13 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DB_PASS: ${{ secrets.DB_PASS }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          # ✅ Pass exact secrets to the script
           envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST
           script: |
             mkdir -p ~/Law-firm-website-
@@ -131,5 +124,5 @@ jobs:
             sudo docker-compose pull
             sudo docker-compose up -d --force-recreate
             
-            # 🧹 Cleanup
+            # 🧹 Cleanup old images to prevent disk issues
             sudo docker image prune -f
