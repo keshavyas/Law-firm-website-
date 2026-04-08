@@ -1,7 +1,7 @@
 'use strict';
 
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ override: true });
 
 import { buildApp } from './app.js';
 import db, { testConnection } from './config/database.js';

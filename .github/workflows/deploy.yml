@@ -59,17 +59,18 @@ jobs:
             cd ~/Law-firm-website-
             
             # 🔥 Generate the docker-compose.yml on the host
-            # Using cat << 'EOF' (with quotes) to prevent shell expansion of variables on the runner
-            cat << 'EOF' > docker-compose.yml
+            # Using cat << EOF (NO single quotes) to allow GitHub to expand variables
+            cat << EOF > docker-compose.yml
             version: '3.9'
             services:
               db:
                 image: postgres:15-alpine
                 container_name: case_db
+                hostname: db
                 environment:
                   POSTGRES_DB: case_db
                   POSTGRES_USER: postgres
-                  POSTGRES_PASSWORD: ${DB_PASS}
+                  POSTGRES_PASSWORD: $DB_PASS
                 volumes:
                   - postgres_data:/var/lib/postgresql/data
                 networks:
@@ -82,15 +83,15 @@ jobs:
                 restart: unless-stopped
 
               backend:
-                image: ${DOCKER_USERNAME}/democase_backend:latest
+                image: $DOCKER_USERNAME/democase_backend:latest
                 container_name: democase_backend
                 environment:
                   NODE_ENV: production
                   PORT: 3001
                   HOST: 0.0.0.0
-                  DATABASE_URL: postgres://postgres:${DB_PASS}@db:5432/case_db
-                  JWT_SECRET: ${JWT_SECRET}
-                  FRONTEND_URL: http://${EC2_HOST}
+                  DATABASE_URL: postgres://postgres:$DB_PASS@db:5432/case_db
+                  JWT_SECRET: $JWT_SECRET
+                  FRONTEND_URL: http://$EC2_HOST
                 ports:
                   - "3001:3001"
                 networks:
@@ -101,7 +102,7 @@ jobs:
                 restart: unless-stopped
 
               frontend:
-                image: ${DOCKER_USERNAME}/democase_frontend:latest
+                image: $DOCKER_USERNAME/democase_frontend:latest
                 container_name: democase_frontend
                 ports:
                   - "80:80"
@@ -119,14 +120,9 @@ jobs:
                 driver: bridge
             EOF
             
-            # 🚀 Pulll and Restart
-            export DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            export DB_PASS=${{ secrets.DB_PASS }}
-            export JWT_SECRET=${{ secrets.JWT_SECRET }}
-            export EC2_HOST=${{ secrets.EC2_HOST }}
-            
+            # 🚀 Pull and Restart
             sudo docker-compose pull
-            sudo docker-compose up -d
+            sudo docker-compose up -d --force-recreate
             
             # 🧹 Cleanup old images to prevent disk issues
             sudo docker image prune -f

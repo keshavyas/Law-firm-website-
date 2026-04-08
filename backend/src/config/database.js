@@ -1,4 +1,6 @@
 // DATABASE CONNECTION
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { Sequelize } from 'sequelize';
 
 let sequelize;
