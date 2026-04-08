@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB:       case_db
       POSTGRES_USER:     postgres
-      POSTGRES_PASSWORD: ${DB_PASS:-keshav}
+      POSTGRES_PASSWORD: ${DB_PASS}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -37,8 +37,8 @@ services:
       DB_PORT:        5432
       DB_USER:        postgres
       DB_NAME:        case_db
-      DATABASE_URL:   postgres://postgres:${DB_PASS:-keshav}@db:5432/case_db
-      JWT_SECRET:     ${JWT_SECRET:-change_this_in_production_min_32_chars}
+      DATABASE_URL:   postgres://postgres:${DB_PASS}@db:5432/case_db
+      JWT_SECRET:     ${JWT_SECRET}
       JWT_EXPIRES_IN: 7d
       BCRYPT_ROUNDS:  10
       FRONTEND_URL:   ${FRONTEND_URL:-http://13.60.185.226}
@@ -48,6 +48,8 @@ services:
       - "3001:3001"
     networks:
       - democase
+    links:
+      - db
     depends_on:
       - db
     healthcheck:

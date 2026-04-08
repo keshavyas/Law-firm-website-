@@ -5,6 +5,8 @@ echo "\n🔁 Running DB migrations (sequelize.sync)..."
 # Wait for Postgres TCP port to be reachable before attempting migrations
 DB_HOST=${DB_HOST:-db}
 DB_PORT=${DB_PORT:-5432}
+echo "\n📋 /etc/hosts content:"
+cat /etc/hosts
 echo "\n⏳ Waiting for Postgres at ${DB_HOST}:${DB_PORT} to be reachable..."
 WAIT_TRIES=0
 until nc -z "$DB_HOST" "$DB_PORT"
