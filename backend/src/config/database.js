@@ -48,6 +48,9 @@ export async function testConnection() {
 
   while (attempts < MAX_RETRIES) {
     try {
+      const dbHost = sequelize.options.host || 'unknown';
+      const dbPort = sequelize.options.port || 'unknown';
+      console.log(`   Trying to connect to Postgres at ${dbHost}:${dbPort}...`);
       await sequelize.authenticate();
       console.log('   Postgres connection established');
       return true;
