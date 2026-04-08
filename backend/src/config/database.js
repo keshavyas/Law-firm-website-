@@ -5,42 +5,45 @@ import { Sequelize } from 'sequelize';
 
 let sequelize;
 
-if (process.env.DATABASE_URL) {
+const dbName = process.env.DB_NAME || 'case_db';
+const dbUser = process.env.DB_USER || 'postgres';
+const dbPass = process.env.DB_PASS || 'postgres';
+const dbHost = process.env.DB_HOST || 'localhost';
+const dbPort = parseInt(process.env.DB_PORT) || 5432;
+
+if (process.env.DATABASE_URL && !process.env.DB_HOST) {
+  console.log(`\n🔍 Using legacy DATABASE_URL for connection...`);
   sequelize = new Sequelize(process.env.DATABASE_URL, {
     dialect: 'postgres',
-
     logging: process.env.NODE_ENV === 'development'
       ? (sql) => { console.log(sql); }
       : false,
-
-    pool: {
-      max:     10,
-      min:     2,
-      acquire: 30000,
-      idle:    10000,
-    },
-
+    pool: { max: 10, min: 2, acquire: 30000, idle: 10000 },
     dialectOptions: {
       ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
     },
   });
-
 } else {
+  console.log(`\n🔍 Initializing Sequelize with granular variables: ${dbHost}:${dbPort}`);
   sequelize = new Sequelize(
-    process.env.DB_NAME || 'case_db',
-    process.env.DB_USER || 'postgres',
-    process.env.DB_PASS || 'postgres',
+    dbName,
+    dbUser,
+    dbPass,
     {
-      host:    process.env.DB_HOST || 'db',
-      port:    parseInt(process.env.DB_PORT) || 5432,
+      host:    dbHost,
+      port:    dbPort,
       dialect: 'postgres',
       logging: process.env.NODE_ENV === 'development'
         ? (sql) => { console.log(sql); }
         : false,
       pool: { max: 10, min: 2, acquire: 30000, idle: 10000 },
+      dialectOptions: {
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      },
     }
   );
 }
+
 
 export async function testConnection() {
   const MAX_RETRIES = 5;
