@@ -89,6 +89,10 @@ jobs:
                   NODE_ENV: production
                   PORT: 3001
                   HOST: 0.0.0.0
+                  DB_HOST: db
+                  DB_PORT: 5432
+                  DB_USER: postgres
+                  DB_NAME: case_db
                   DATABASE_URL: postgres://postgres:$DB_PASS@db:5432/case_db
                   JWT_SECRET: $JWT_SECRET
                   FRONTEND_URL: http://$EC2_HOST
@@ -96,6 +100,8 @@ jobs:
                   - "3001:3001"
                 networks:
                   - democase
+                links:
+                  - db
                 depends_on:
                   db:
                     condition: service_healthy
