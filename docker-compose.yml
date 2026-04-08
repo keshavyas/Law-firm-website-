@@ -35,10 +35,10 @@ services:
       HOST:           0.0.0.0
       DB_HOST:        db
       DB_PORT:        5432
-      DB_USER:        postgres
-      DB_NAME:        case_db
-      DATABASE_URL:   postgres://postgres:${DB_PASS}@db:5432/case_db
-      JWT_SECRET:     ${JWT_SECRET}
+      DB_USER:        ${DB_USER:-postgres}
+      DB_NAME:        ${DB_NAME:-case_db}
+      DATABASE_URL:   postgres://postgres:${DB_PASS:-keshav}@db:5432/case_db
+      JWT_SECRET:     ${JWT_SECRET:-change_this_in_production_min_32_chars}
       JWT_EXPIRES_IN: 7d
       BCRYPT_ROUNDS:  10
       FRONTEND_URL:   ${FRONTEND_URL:-http://13.60.185.226}
