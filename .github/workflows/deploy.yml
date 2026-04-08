@@ -100,6 +100,7 @@ jobs:
                   DB_PORT: 5432
                   DB_USER: postgres
                   DB_NAME: case_db
+                  DB_PASS: $DB_PASS
                   DATABASE_URL: postgres://postgres:$DB_PASS@db:5432/case_db
                   JWT_SECRET: $JWT_SECRET
                   FRONTEND_URL: http://$EC2_HOST

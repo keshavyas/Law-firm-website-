@@ -37,6 +37,7 @@ services:
       DB_PORT:        5432
       DB_USER:        ${DB_USER:-postgres}
       DB_NAME:        ${DB_NAME:-case_db}
+      DB_PASS:        ${DB_PASS:-keshav}
       DATABASE_URL:   postgres://postgres:${DB_PASS:-keshav}@db:5432/case_db
       JWT_SECRET:     ${JWT_SECRET:-change_this_in_production_min_32_chars}
       JWT_EXPIRES_IN: 7d
@@ -48,10 +49,10 @@ services:
       - "3001:3001"
     networks:
       - democase
-    links:
-      - db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
     healthcheck:
       test:     ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1"]
       interval: 30s
