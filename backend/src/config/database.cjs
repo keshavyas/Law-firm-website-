@@ -23,7 +23,7 @@ module.exports = {
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASS,
     database: process.env.DB_NAME || 'case_db',
-    host:     'db',   // Docker internal hostname — resolved by Docker DNS
+    host:     process.env.DB_HOST || 'db',   // Use env var or default to Docker 'db' alias
     port:     5432,
     dialect:  'postgres',
     logging:  false,
