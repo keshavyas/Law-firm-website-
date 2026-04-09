@@ -1,15 +1,14 @@
-version: '3.9'
+version: '3.8'
 
 services:
 
   db:
     image: postgres:15-alpine
     container_name: case_db
-    hostname: db
     environment:
-      POSTGRES_DB:       case_db
-      POSTGRES_USER:     postgres
-      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB:       ${POSTGRES_DB:-case_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-keshav}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -39,11 +38,9 @@ services:
       DB_USER:        ${DB_USER:-postgres}
       DB_NAME:        ${DB_NAME:-case_db}
       DB_PASS:        ${DB_PASS:-keshav}
-      DATABASE_URL:   postgres://postgres:${DB_PASS:-keshav}@db:5432/case_db
-      JWT_SECRET:     ${JWT_SECRET:-change_this_in_production_min_32_chars}
-      JWT_EXPIRES_IN: 7d
-      BCRYPT_ROUNDS:  10
-      FRONTEND_URL:   ${FRONTEND_URL:-http://13.60.185.226}
+      DATABASE_URL:   postgres://${DB_USER:-postgres}:${DB_PASS:-keshav}@db:5432/${DB_NAME:-case_db}
+      JWT_SECRET:     ${JWT_SECRET}
+      FRONTEND_URL:   ${FRONTEND_URL}
     volumes:
       - uploads_data:/app/uploads
     ports:
@@ -53,7 +50,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
     healthcheck:
       test:     ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1"]
       interval: 30s
@@ -66,11 +62,9 @@ services:
       context:    ./caseR
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ""
+        VITE_API_URL: ${VITE_API_URL}
     image: democase_frontend:latest
     container_name: democase_frontend
-    environment:
-      VITE_API_URL: ""
     ports:
       - "80:80"
     networks:
@@ -85,4 +79,4 @@ volumes:
 
 networks:
   democase:
-    driver: bridge
+    driver: bridge
