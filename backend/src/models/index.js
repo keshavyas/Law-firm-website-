@@ -1,4 +1,4 @@
-import sequelize from '../config/database.js';
+import sequelize from '../config/sequelize.js';
 import User      from './user.model.js';
 import Case      from './case.model.js';
 import Matter     from './matter.model.js'; 

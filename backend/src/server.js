@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { buildApp } from './app.js';
-import db, { testConnection } from './config/database.js';
+import db, { testConnection } from './config/sequelize.js';
 
 const PORT = parseInt(process.env.PORT) || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
