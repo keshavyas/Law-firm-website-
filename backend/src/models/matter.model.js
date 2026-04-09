@@ -1,5 +1,5 @@
 import { DataTypes, Model } from 'sequelize';
-import sequelize from '../config/database.js';
+import sequelize from '../config/sequelize.js';
 
 export const MATTER_STATUS_TRANSITIONS = {
   open:            ['in_progress', 'on_hold'],

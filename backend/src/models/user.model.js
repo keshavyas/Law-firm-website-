@@ -1,6 +1,6 @@
 
 import { DataTypes, Model } from "sequelize";
-import sequelize from "../config/database.js";
+import sequelize from "../config/sequelize.js";
 
 class User extends Model {
   // Returns user object safe to send to client (no password)

@@ -38,7 +38,7 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/democase_frontend:latest
           build-args: |
-             VITE_API_URL=""
+             VITE_API_URL=http://${{ secrets.EC2_HOST }}:3001
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -52,63 +52,68 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          # ✅ Pass exact secrets to the script
           envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST
           script: |
-            mkdir -p ~/Law-firm-website-
-            cd ~/Law-firm-website-
+            mkdir -p ~/Case-manager
+            cd ~/Case-manager
             
-            # 🔥 Generate the docker-compose.yml on the host
-            # Using cat << EOF (NO single quotes) to allow GitHub to expand variables
+            # 🔥 Generate the optimized docker-compose.yml matching our current working setup
             cat << EOF > docker-compose.yml
-            version: '3.9'
+            version: '3.8'
+            
             services:
               db:
                 image: postgres:15-alpine
                 container_name: case_db
-                hostname: db
                 environment:
-                  POSTGRES_DB: case_db
-                  POSTGRES_USER: postgres
+                  POSTGRES_DB:       case_db
+                  POSTGRES_USER:     postgres
                   POSTGRES_PASSWORD: $DB_PASS
                 volumes:
                   - postgres_data:/var/lib/postgresql/data
+                ports:
+                  - "5432:5432"
                 networks:
                   - democase
                 healthcheck:
-                  test: ["CMD-SHELL", "pg_isready -U postgres -d case_db"]
+                  test:     ["CMD-SHELL", "pg_isready -U postgres -d case_db"]
                   interval: 10s
-                  timeout: 5s
-                  retries: 10
+                  timeout:  5s
+                  retries:  10
                 restart: unless-stopped
-
+            
               backend:
                 image: $DOCKER_USERNAME/democase_backend:latest
                 container_name: democase_backend
                 environment:
-                  NODE_ENV: production
-                  NODE_OPTIONS: --dns-result-order=ipv4first
-                  PORT: 3001
-                  HOST: 0.0.0.0
-                  DB_HOST: case_db
-                  DB_PORT: 5432
-                  DB_USER: postgres
-                  DB_NAME: case_db
-                  DB_PASS: $DB_PASS
-                  DATABASE_URL: postgres://postgres:$DB_PASS@case_db:5432/case_db
-                  JWT_SECRET: $JWT_SECRET
-                  FRONTEND_URL: http://$EC2_HOST
+                  NODE_ENV:       production
+                  NODE_OPTIONS:   --dns-result-order=ipv4first
+                  PORT:           3001
+                  HOST:           0.0.0.0
+                  DB_HOST:        db
+                  DB_PORT:        5432
+                  DB_USER:        postgres
+                  DB_NAME:        case_db
+                  DB_PASS:        $DB_PASS
+                  DATABASE_URL:   postgres://postgres:$DB_PASS@db:5432/case_db
+                  JWT_SECRET:     $JWT_SECRET
+                  FRONTEND_URL:   http://$EC2_HOST
+                volumes:
+                  - uploads_data:/app/uploads
                 ports:
                   - "3001:3001"
                 networks:
                   - democase
-                links:
-                  - db
                 depends_on:
                   db:
                     condition: service_healthy
+                healthcheck:
+                  test:     ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1"]
+                  interval: 30s
+                  timeout:  10s
+                  retries:  3
                 restart: unless-stopped
-
+            
               frontend:
                 image: $DOCKER_USERNAME/democase_frontend:latest
                 container_name: democase_frontend
@@ -117,20 +122,23 @@ jobs:
                 networks:
                   - democase
                 depends_on:
-                  backend:
-                    condition: service_started
+                  - backend
                 restart: unless-stopped
-
+            
             volumes:
               postgres_data:
+              uploads_data:
+            
             networks:
               democase:
                 driver: bridge
             EOF
             
-            # 🚀 Pull and Restart
+            # 🚀 Pull and Restart fresh
             sudo docker-compose pull
-            sudo docker-compose up -d --force-recreate
+            sudo docker-compose stop backend frontend
+            sudo docker-compose rm -f backend frontend
+            sudo docker-compose up -d
             
-            # 🧹 Cleanup old images to prevent disk issues
+            # 🧹 Cleanup
             sudo docker image prune -f
