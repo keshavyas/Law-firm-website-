@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 // DATABASE CONFIGURATION
 // Exports a plain config object (not a Sequelize instance).
 // Used by: sequelize.js (app runtime) and database.cjs (sequelize-cli migrations)
@@ -21,7 +24,7 @@ const config = {
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASS,
     database: process.env.DB_NAME || 'case_db',
-    host:     'db',             // Docker service name — resolved via internal DNS
+    host:     process.env.DB_HOST || 'db',             // Use env var or default to Docker 'db' alias
     port:     5432,
     dialect:  'postgres',
     logging:  false,
