@@ -141,9 +141,11 @@ jobs:
             EOF
             
             # 🚀 Pull and Restart fresh
-            # Using --pull always and --force-recreate ensures we don't use stale cache
-            sudo docker compose pull
-            sudo docker compose up -d --force-recreate --remove-orphans
+            # Using --force-recreate ensures we don't use stale cache
+            sudo docker-compose pull
+            sudo docker-compose up -d --force-recreate --remove-orphans
             
             # 🧹 Cleanup
             sudo docker image prune -f
+
+        
