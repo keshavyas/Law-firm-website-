@@ -89,7 +89,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center mb-7">
-          <div className="text-3xl font-serif font-medium text-stone-800 mb-1">⚖️ DemoCase</div>
+          <div className="text-3xl font-serif font-medium text-stone-800 mb-1">⚖️ LegalCase</div>
           <p className="text-stone-500 text-sm"> demo-Legal Case Management</p>
         </div>
 
