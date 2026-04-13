@@ -18,7 +18,7 @@ export default function Sidebar({ user, currentView, onNavigate, onLogout }) {
 
       {/* Logo */}
       <div className="px-5 py-5 border-b border-stone-700">
-        <p className="text-lg font-serif font-medium">⚖️ DemoCase</p>
+        <p className="text-lg font-serif font-medium">⚖️ LegalCase</p>
         <p className="text-xs text-stone-400 mt-0.5 capitalize">{user?.role} Portal</p>
       </div>
 

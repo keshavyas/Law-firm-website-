@@ -51,7 +51,7 @@ export async function buildApp() {
     return reply.send({
       success: true,
       data: {
-        name:      "DemoCase API",
+        name:      "LegalCase API",
         version:   "1.0.0",
         health:    "/health",
         endpoints: {
