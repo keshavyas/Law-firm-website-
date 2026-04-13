@@ -48,12 +48,18 @@ jobs:
     steps:
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST
           script: |
+            set -e
             mkdir -p ~/Case-manager
             cd ~/Case-manager
             
@@ -135,10 +141,9 @@ jobs:
             EOF
             
             # 🚀 Pull and Restart fresh
-            sudo docker-compose pull
-            sudo docker-compose stop backend frontend
-            sudo docker-compose rm -f backend frontend
-            sudo docker-compose up -d
+            # Using --pull always and --force-recreate ensures we don't use stale cache
+            sudo docker compose pull
+            sudo docker compose up -d --force-recreate --remove-orphans
             
             # 🧹 Cleanup
             sudo docker image prune -f
