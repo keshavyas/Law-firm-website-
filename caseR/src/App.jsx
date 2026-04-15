@@ -9,6 +9,7 @@ import ClientCaseDetail        from './components/client/casedetail.jsx';
 import FileComplaint           from './components/client/filecomplaint.jsx';
 import Sidebar                 from './components/layout/sidebar.jsx';
 import Navbar                  from './components/layout/navbar.jsx';
+import SummaryPage             from './components/data/summarypage.jsx';
 
 function AppShell() {
   const { user, logout } = useApp();
@@ -57,6 +58,14 @@ function AppShell() {
             // After filing, go directly to the new case detail page
             // so client can immediately add matters or upload more docs
             onSuccess={(newCaseId) => navigate('client-case-detail', newCaseId)}
+          />
+        );
+
+      case 'summary':
+        return (
+          <SummaryPage
+            caseId={selectedCaseId}
+            onBack={() => navigate(user.role === 'lawyer' ? 'case-detail' : 'client-case-detail', selectedCaseId)}
           />
         );
 

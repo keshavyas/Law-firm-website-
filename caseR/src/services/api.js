@@ -178,4 +178,12 @@ export const api = {
     if (!response.ok) throw new Error(data.error?.message || 'Upload failed');
     return data;
   },
+
+  // AI SUMMARIZE
+  // POST /api/ai/summarize
+  summarize: (caseId) =>
+    request('/api/ai/summarize', {
+      method: 'POST',
+      body:   JSON.stringify({ case_id: caseId }),
+    }),
 };

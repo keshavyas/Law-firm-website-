@@ -84,6 +84,8 @@ services:
       - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASS:-keshav}@db:5432/${DB_NAME:-case_db}
     ports:
       - "3002:3002"
+    volumes:
+      - uploads_data:/app/uploads:ro
     networks:
       - democase
     depends_on:

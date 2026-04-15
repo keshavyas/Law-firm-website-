@@ -9,3 +9,6 @@ psycopg2-binary==2.9.9
 sqlalchemy==2.0.28
 alembic==1.13.1
 aiohttp==3.9.3
+pypdf==4.1.0
+sqlalchemy[asyncio]==2.0.28
+asyncpg==0.29.0

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api }                         from '../../services/api.js';
 import { useApp }                      from '../context/appcontext.jsx';
 
-export default function LawyerCaseDetail({ caseId, onBack }) {
+export default function LawyerCaseDetail({ caseId, onBack, onNavigate }) {
   const { updateCaseStatus, loading } = useApp();
 
   const [caseData,   setCaseData]   = useState(null);
@@ -106,27 +106,33 @@ export default function LawyerCaseDetail({ caseId, onBack }) {
 
   // Download to device 
   async function handleDownload(filename) {
+    console.log('Lawyer starting download for:', filename);
     try {
-      const token = localStorage.getItem('lexcase_token');
+      const token = localStorage.getItem('democase_token');
       const BASE  = import.meta.env.VITE_API_URL !== undefined ? import.meta.env.VITE_API_URL : '';
+      const url   = `${BASE}/api/cases/${caseId}/documents/${encodeURIComponent(filename)}`;
+      
+      console.log('Fetching from:', url);
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 
-      const res = await fetch(
-        `${BASE}/api/cases/${caseId}/documents/${encodeURIComponent(filename)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (!res.ok) throw new Error('Download failed');
+      if (!res.ok) {
+        console.error('Lawyer download failed:', res.status, res.statusText);
+        throw new Error('Download failed');
+      }
 
       const blob = await res.blob();
-      const url  = window.URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
+      console.log('Blob received:', blob.size, 'bytes');
+      
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
       a.download = filename.replace(/^[A-Z0-9-]+_\d+_/, '') || filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch {
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Lawyer handleDownload Error:', err);
       alert('Download failed. Please try again.');
     }
   }
@@ -172,7 +178,15 @@ export default function LawyerCaseDetail({ caseId, onBack }) {
     <div className="p-6 space-y-6">
 
       <div>
-        <button onClick={onBack} className="text-sm text-stone-500 hover:text-stone-700 mb-3 block">← Back to cases</button>
+        <div className="flex justify-between items-center mb-3">
+          <button onClick={onBack} className="text-sm text-stone-500 hover:text-stone-700 block">← Back to cases</button>
+          <button 
+            onClick={() => onNavigate('summary', caseId)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg text-xs font-medium hover:bg-stone-200 transition-colors border border-stone-200"
+          >
+            ✨ AI Summarize
+          </button>
+        </div>
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-mono text-stone-400 mb-1">{caseData.id}</p>
