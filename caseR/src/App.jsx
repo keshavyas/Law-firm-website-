@@ -40,6 +40,7 @@ function AppShell() {
           <LawyerCaseDetail
             caseId={selectedCaseId}
             onBack={() => navigate('cases')}
+            onNavigate={navigate}
           />
         );
 
@@ -49,6 +50,7 @@ function AppShell() {
           <ClientCaseDetail
             caseId={selectedCaseId}
             onBack={() => navigate('dashboard')}
+            onNavigate={navigate}
           />
         );
 
