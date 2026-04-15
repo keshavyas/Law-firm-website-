@@ -183,10 +183,25 @@ export default async function casesRoutes(fastify) {
       };
       const mime    = mimes[ext] || 'application/octet-stream';
 
-      reply.header('Content-Type',        mime);
-      reply.header('Content-Disposition', `attachment; filename="${displayName}"`);
+      // Robust Content-Disposition (RFC 5987) to prevent "Failed to download"
+      // and handle special characters in filenames.
+      const encodedName = encodeURIComponent(displayName).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/\*/g, '%2a');
+      
+      reply.header('Content-Type', mime);
+      reply.header('Content-Disposition', `attachment; filename="${displayName.replace(/"/g, '\\"')}"; filename*=UTF-8''${encodedName}`);
+      reply.header('Content-Security-Policy', "default-src 'self'");
+      
+      const stream = createReadStream(filepath);
+      
+      // Handle stream errors to prevent server crash or hanging request
+      stream.on('error', (err) => {
+        request.log.error(err);
+        if (!reply.sent) {
+          reply.status(500).send({ success: false, error: { code: 'SERVER_ERROR', message: 'Error reading file' } });
+        }
+      });
 
-      return reply.send(createReadStream(filepath));
+      return reply.send(stream);
 
     } catch (err) {
       return sendError(reply, err);
