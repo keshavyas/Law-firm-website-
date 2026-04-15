@@ -33,3 +33,26 @@ async def get_case_documents(case_id: str):
         except Exception as e:
             logger.error(f"DB Error: {str(e)}")
             return None
+
+async def save_summary(input_text: str, summary: str):
+    async with AsyncSessionLocal() as session:
+        try:
+            await session.execute(
+                text("""
+                CREATE TABLE IF NOT EXISTS ai_summaries (
+                    id SERIAL PRIMARY KEY,
+                    input_text TEXT,
+                    summary TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+            )
+            await session.execute(
+                text("INSERT INTO ai_summaries (input_text, summary) VALUES (:input_text, :summary)"),
+                {"input_text": input_text, "summary": summary}
+            )
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Save summary error: {str(e)}")
+            await session.rollback()
+

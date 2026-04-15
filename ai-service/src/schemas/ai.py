@@ -7,4 +7,14 @@ class SummarizeRequest(BaseModel):
 
 class SummarizeResponse(BaseModel):
     summary: str
+    status: str = "success"
+    error: Optional[str] = None
     cached: bool = False
+
+class DeadlineRequest(BaseModel):
+    text: str
+
+class DeadlineResponse(BaseModel):
+    deadlines: str
+    status: str = "success"
+    error: Optional[str] = None
