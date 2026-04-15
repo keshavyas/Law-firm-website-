@@ -13,7 +13,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY src/ ./src/
 COPY package*.json ./
-RUN mkdir -p uploads && chown -R nodeuser:nodejs /app
+RUN mkdir -p uploads && chown nodeuser:nodejs uploads
 USER nodeuser
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \

@@ -45,12 +45,12 @@ module.exports = {
       updatedAt: { type: Sequelize.DATE, allowNull: false },
     });
 
-    // Indexes from case.model.js
-    await queryInterface.addIndex('cases', ['clientId']);
-    await queryInterface.addIndex('cases', ['status']);
-    await queryInterface.addIndex('cases', ['category']);
-    await queryInterface.addIndex('cases', ['filedDate']);
-    await queryInterface.addIndex('cases', ['status', 'priority']);
+    // Indexes from case.model.js (wrapped in try/catch to prevent migration loops)
+    try { await queryInterface.addIndex('cases', ['clientId']); } catch (e) {}
+    try { await queryInterface.addIndex('cases', ['status']); } catch (e) {}
+    try { await queryInterface.addIndex('cases', ['category']); } catch (e) {}
+    try { await queryInterface.addIndex('cases', ['filedDate']); } catch (e) {}
+    try { await queryInterface.addIndex('cases', ['status', 'priority']); } catch (e) {}
   },
 
   async down(queryInterface, Sequelize) {

@@ -41,11 +41,11 @@ module.exports = {
       updatedAt: { type: Sequelize.DATE, allowNull: false },
     });
 
-    // Indexes from matter.model.js
-    await queryInterface.addIndex('matters', ['caseId']);
-    await queryInterface.addIndex('matters', ['status']);
-    await queryInterface.addIndex('matters', ['priority']);
-    await queryInterface.addIndex('matters', ['caseId', 'status']);
+    // Indexes from matter.model.js (wrapped in try/catch to prevent migration loops)
+    try { await queryInterface.addIndex('matters', ['caseId']); } catch(e) {}
+    try { await queryInterface.addIndex('matters', ['status']); } catch(e) {}
+    try { await queryInterface.addIndex('matters', ['priority']); } catch(e) {}
+    try { await queryInterface.addIndex('matters', ['caseId', 'status']); } catch(e) {}
   },
 
   async down(queryInterface, Sequelize) {

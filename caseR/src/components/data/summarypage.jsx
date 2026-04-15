@@ -61,7 +61,7 @@ export default function SummaryPage({ caseId, onBack }) {
       </div>
 
       <div className="text-center">
-        <p className="text-xs text-stone-400">
+        <p className="text-sm text-black-400">
           AI-generated summaries can be inaccurate. Please verify critical information against original documents.
         </p>
       </div>
