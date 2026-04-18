@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from google import genai
 from .config import settings
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +16,14 @@ class AIAdapter(ABC):
 
 class GeminiAdapter(AIAdapter):
     def __init__(self):
-        # We reuse the same client but use the .aio namespace for async calls
+        # google-genai >= 1.0.0 uses the stable v1 API endpoint
         self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        # Models in order of preference — all available on the v1 stable API
         self.models_to_try = [
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
             'gemini-1.5-flash',
-            'gemini-1.5-flash-latest',
             'gemini-1.5-pro',
-            'gemini-2.0-flash-exp', # Adding a newer experimental model as an extra fallback
         ]
 
     async def _generate_with_fallback(self, prompt: str) -> str:
@@ -31,29 +31,29 @@ class GeminiAdapter(AIAdapter):
         for model_name in self.models_to_try:
             try:
                 logger.info(f"Attempting generation with model: {model_name}")
-                # Use the asynchronous namespace .aio
+                # google-genai >= 1.0 uses client.aio for async
                 response = await self.client.aio.models.generate_content(
                     model=model_name,
                     contents=prompt
                 )
-                
                 if response and response.text:
+                    logger.info(f"Successfully generated with model: {model_name}")
                     return response.text
-                
-                logger.warning(f"Model {model_name} returned empty response or was filtered.")
-                
+                logger.warning(f"Model {model_name} returned empty response.")
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"Model {model_name} failed: {last_error}")
-                # If the error is definitely not a 'not found' error, it might be quota/auth
-                # but we'll try other models regardless to be safe.
                 continue
-        
+
         raise Exception(f"All Gemini models failed. Last error: {last_error}")
 
     async def summarize(self, text: str) -> str:
         try:
-            prompt = f"Please provide a concise and professional summary of the following legal document/text:\n\n{text}"
+            prompt = (
+                "You are a legal assistant. Please provide a concise and professional "
+                "summary of the following legal case document. Highlight key parties, "
+                "issues, and relevant dates:\n\n" + text
+            )
             return await self._generate_with_fallback(prompt)
         except Exception as e:
             logger.error(f"Gemini Summarization Error: {str(e)}")
@@ -61,7 +61,10 @@ class GeminiAdapter(AIAdapter):
 
     async def extract_deadlines(self, text: str) -> str:
         try:
-            prompt = f"Please extract all deadlines and dates from the following legal text:\n\n{text}"
+            prompt = (
+                "You are a legal assistant. Please extract all deadlines, important dates, "
+                "and time-sensitive items from the following legal text:\n\n" + text
+            )
             return await self._generate_with_fallback(prompt)
         except Exception as e:
             logger.error(f"Gemini Deadline Extraction Error: {str(e)}")
