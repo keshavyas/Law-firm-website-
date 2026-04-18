@@ -41,6 +41,7 @@ services:
       DATABASE_URL:   postgres://${DB_USER:-postgres}:${DB_PASS:-keshav}@db:5432/${DB_NAME:-case_db}
       JWT_SECRET:     ${JWT_SECRET}
       FRONTEND_URL:   ${FRONTEND_URL}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-service:3002}
     volumes:
       - uploads_data:/app/uploads
     ports:
