@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 import google.generativeai as genai
 from .config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AIAdapter(ABC):
     @abstractmethod
