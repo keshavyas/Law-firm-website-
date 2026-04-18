@@ -64,11 +64,12 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.0-flash' }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST,GOOGLE_API_KEY
+          envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST,GOOGLE_API_KEY,GEMINI_MODEL
           script: |
             set -e
             mkdir -p ~/Case-manager
@@ -148,6 +149,7 @@ jobs:
                 container_name: democase_ai
                 environment:
                   - GOOGLE_API_KEY=$GOOGLE_API_KEY
+                  - GEMINI_MODEL=$GEMINI_MODEL
                   - DATABASE_URL=postgres://postgres:$DB_PASS@db:5432/case_db
                 ports:
                   - "3002:3002"

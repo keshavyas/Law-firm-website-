@@ -82,6 +82,7 @@ services:
     container_name: democase_ai
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASS:-keshav}@db:5432/${DB_NAME:-case_db}
     ports:
       - "3002:3002"
