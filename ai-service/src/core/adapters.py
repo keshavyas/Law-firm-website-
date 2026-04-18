@@ -2,77 +2,114 @@ from abc import ABC, abstractmethod
 from google import genai
 from .config import settings
 import logging
+import asyncio
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Retry decorator — retries up to 3 times on any Exception with exponential
+# back-off (1 s, 2 s, 4 s). Can be tuned via constructor if needed later.
+# ---------------------------------------------------------------------------
+def _make_retry():
+    return retry(
+        reraise=True,
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=8),
+        retry=retry_if_exception_type(Exception),
+        before_sleep=lambda rs: logger.warning(
+            f"Retry {rs.attempt_number} after error: {rs.outcome.exception()}"
+        ),
+    )
 
 class AIAdapter(ABC):
     @abstractmethod
     async def summarize(self, text: str) -> str:
         pass
-        
+
     @abstractmethod
     async def extract_deadlines(self, text: str) -> str:
         pass
 
+
 class GeminiAdapter(AIAdapter):
+    """
+    Adapter for Google Gemini via the modern google-genai SDK (>= 1.0.0).
+    Uses the stable v1 API endpoint. Tries a primary model and falls back
+    to alternatives if a 404 is returned (model retired / region-blocked).
+    """
+
     def __init__(self):
-        # google-genai >= 1.0.0 uses the stable v1 API endpoint
+        if not settings.GOOGLE_API_KEY:
+            raise ValueError("GOOGLE_API_KEY environment variable is not set.")
+
         self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
-        # Models in order of preference — all available on the v1 stable API
-        self.models_to_try = [
-            'gemini-2.0-flash',
-            'gemini-2.0-flash-lite',
-            'gemini-1.5-flash',
-            'gemini-1.5-pro',
+
+        # Primary model from env, with safe fallbacks in order of preference.
+        # All of these exist in the stable v1 API.
+        primary = settings.GEMINI_MODEL
+        self.models_to_try = [primary] + [
+            m for m in [
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-lite",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+            ]
+            if m != primary  # avoid duplicating the primary
         ]
+        logger.info(f"GeminiAdapter initialised. Primary model: {primary}")
+
+    async def _call_model(self, model_name: str, prompt: str) -> str:
+        """Single model call — decorated externally with retry logic."""
+        response = await self.client.aio.models.generate_content(
+            model=model_name,
+            contents=prompt,
+        )
+        if response and response.text:
+            return response.text
+        raise ValueError(f"Model {model_name} returned an empty response (possible safety block).")
 
     async def _generate_with_fallback(self, prompt: str) -> str:
-        last_error = None
+        last_error: str = ""
         for model_name in self.models_to_try:
             try:
-                logger.info(f"Attempting generation with model: {model_name}")
-                # google-genai >= 1.0 uses client.aio for async
-                response = await self.client.aio.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                if response and response.text:
-                    logger.info(f"Successfully generated with model: {model_name}")
-                    return response.text
-                logger.warning(f"Model {model_name} returned empty response.")
-            except Exception as e:
-                last_error = str(e)
-                logger.warning(f"Model {model_name} failed: {last_error}")
-                continue
+                logger.info(f"Trying model: {model_name}")
+                # Apply per-call retry with exponential back-off
+                result = await _make_retry()(self._call_model)(model_name, prompt)
+                logger.info(f"Success with model: {model_name}")
+                return result
+            except Exception as exc:
+                last_error = str(exc)
+                err_lower = last_error.lower()
+                # Only skip to next model on 'not found' / 'not supported' errors
+                if "404" in last_error or "not found" in err_lower or "not supported" in err_lower:
+                    logger.warning(f"Model {model_name} not available, trying next. Error: {last_error}")
+                    continue
+                # For auth / quota errors stop immediately — trying other models won't help
+                logger.error(f"Non-retryable error with model {model_name}: {last_error}")
+                raise Exception(f"Gemini API Error: {last_error}")
 
-        raise Exception(f"All Gemini models failed. Last error: {last_error}")
+        raise Exception(f"All Gemini models exhausted. Last error: {last_error}")
 
     async def summarize(self, text: str) -> str:
-        try:
-            prompt = (
-                "You are a legal assistant. Please provide a concise and professional "
-                "summary of the following legal case document. Highlight key parties, "
-                "issues, and relevant dates:\n\n" + text
-            )
-            return await self._generate_with_fallback(prompt)
-        except Exception as e:
-            logger.error(f"Gemini Summarization Error: {str(e)}")
-            raise Exception(f"Gemini API Error: {str(e)}")
+        prompt = (
+            "You are an expert legal assistant. Provide a concise, professional summary "
+            "of the following legal case, highlighting key parties, main legal issues, "
+            "claims, and important dates:\n\n" + text
+        )
+        return await self._generate_with_fallback(prompt)
 
     async def extract_deadlines(self, text: str) -> str:
-        try:
-            prompt = (
-                "You are a legal assistant. Please extract all deadlines, important dates, "
-                "and time-sensitive items from the following legal text:\n\n" + text
-            )
-            return await self._generate_with_fallback(prompt)
-        except Exception as e:
-            logger.error(f"Gemini Deadline Extraction Error: {str(e)}")
-            raise Exception(f"Gemini API Error: {str(e)}")
+        prompt = (
+            "You are an expert legal assistant. Extract all deadlines, important dates, "
+            "and time-sensitive obligations from the following legal text. "
+            "Present them as a clear, ordered list:\n\n" + text
+        )
+        return await self._generate_with_fallback(prompt)
+
 
 def get_adapter(provider: str = None) -> AIAdapter:
     provider = provider or settings.DEFAULT_PROVIDER
     if provider == "gemini":
         return GeminiAdapter()
-    else:
-        raise ValueError(f"Unsupported AI provider: {provider}")
+    raise ValueError(f"Unsupported AI provider: {provider}")
