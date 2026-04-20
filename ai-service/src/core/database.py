@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Convert postgres:// to postgresql+asyncpg:// for async sqlalchemy
+
 db_url = settings.DATABASE_URL
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
