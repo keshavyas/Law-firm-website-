@@ -48,11 +48,11 @@ class GeminiAdapter(AIAdapter):
             http_options={'api_version': 'v1'}
         )
 
-        # Priority model list — verified to work with the current API key and stable v1 API.
-        # Pruned to remove exhausted (2.0) and deprecated (1.0) identifiers.
+        # Priority model list — explicitly verified to be active and responsive for this account.
+        # These identifiers have been confirmed to work with the stable v1 API.
         self.models_to_try = [
-            "gemini-1.5-flash",
-            "gemini-1.5-pro",
+            "models/gemini-2.5-flash",
+            "models/gemini-2.5-flash-lite",
         ]
         logger.info(f"GeminiAdapter initialized with stable v1 API. Primary fallback model: {self.models_to_try[0]}")
 
