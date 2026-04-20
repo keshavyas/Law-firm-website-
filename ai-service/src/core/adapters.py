@@ -43,21 +43,20 @@ class GeminiAdapter(AIAdapter):
         if not settings.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY environment variable is not set.")
 
-        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        self.client = genai.Client(
+            api_key=settings.GOOGLE_API_KEY,
+            http_options={'api_version': 'v1'}
+        )
 
-        # Primary model from env, with safe fallbacks in order of preference.
-        # All of these exist in the stable v1 API.
-        primary = settings.GEMINI_MODEL
-        self.models_to_try = [primary] + [
-            m for m in [
-                "gemini-2.0-flash",
-                "gemini-2.0-flash-lite",
-                "gemini-1.5-flash",
-                "gemini-1.5-pro",
-            ]
-            if m != primary  # avoid duplicating the primary
+        # Priority model list — prioritizing 1.5-flash for its higher free-tier quota limits.
+        # Starting with the most reliable model first given the current 429 quota issues.
+        self.models_to_try = [
+            "gemini-1.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-pro",
+            "gemini-1.0-pro",
         ]
-        logger.info(f"GeminiAdapter initialised. Primary model: {primary}")
+        logger.info(f"GeminiAdapter initialized with stable v1 API. Primary fallback model: {self.models_to_try[0]}")
 
     async def _call_model(self, model_name: str, prompt: str) -> str:
         """Single model call — decorated externally with retry logic."""
