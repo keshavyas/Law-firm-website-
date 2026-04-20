@@ -81,11 +81,11 @@ class GeminiAdapter(AIAdapter):
             except Exception as exc:
                 last_error = str(exc)
                 err_lower = last_error.lower()
-                # Only skip to next model on 'not found' / 'not supported' errors
-                if "404" in last_error or "not found" in err_lower or "not supported" in err_lower:
-                    logger.warning(f"Model {model_name} not available, trying next. Error: {last_error}")
+                # Skip to next model on 'not found', 'not supported', or 'quota/exhausted' errors
+                if any(x in err_lower for x in ["404", "not found", "not supported", "429", "quota", "exhausted"]):
+                    logger.warning(f"Model {model_name} failed or capped, trying next. Error: {last_error}")
                     continue
-                # For auth / quota errors stop immediately — trying other models won't help
+                # For auth or other critical errors stop immediately — trying other models won't help
                 logger.error(f"Non-retryable error with model {model_name}: {last_error}")
                 raise Exception(f"Gemini API Error: {last_error}")
 
