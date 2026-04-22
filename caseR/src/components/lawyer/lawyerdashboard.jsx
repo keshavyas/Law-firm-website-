@@ -114,7 +114,7 @@ export default function LawyerDashboard({ onNavigate }) {
   );
 }
 
-// ── Small helper components ──────────────────────────────────────
+//  Small helper components
 
 function StatCard({ label, value, color }) {
   const colors = {
