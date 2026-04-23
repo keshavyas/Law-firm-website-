@@ -24,7 +24,7 @@ export async function buildApp() {
   try {
     fastify = Fastify({
       logger: {
-        level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
+        level: 'info',
         transport: transportOption,
       },
     });
