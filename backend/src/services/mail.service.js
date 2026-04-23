@@ -6,19 +6,16 @@ dotenv.config();
 
 const transporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.MAIL_PORT || '587'),
-  secure: process.env.MAIL_PORT === '465', // true for 465, false for other ports (like 587)
+  port: parseInt(process.env.MAIL_PORT || '465'),
+  secure: true, 
   auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
+    user: process.env.MAIL_USER || 'keshav.qualwebs@gmail.com',
+    pass: process.env.MAIL_PASS || 'zuhzmgabulyzxwjt',
   },
   tls: {
-    // Do not fail on invalid certificates (useful for some Docker networks)
     rejectUnauthorized: false,
-    // Forces the use of TLS
     minVersion: 'TLSv1.2'
   },
-  // Increase timeouts for slow cloud connections
   connectionTimeout: 10000,
   greetingTimeout: 10000,
   socketTimeout: 15000,
@@ -53,7 +50,7 @@ export async function sendHearingNotification({ to, clientName, caseTitle, caseI
   }
 
   const mailOptions = {
-    from: process.env.MAIL_FROM || `"Law Firm Support" <${process.env.MAIL_USER}>`,
+    from: process.env.MAIL_FROM || `"Law Firm Support" <${process.env.MAIL_USER || 'keshav.qualwebs@gmail.com'}>`,
     to,
     subject: `Update: New Hearing Date for Case ${caseId}`,
     text: `Dear ${clientName},
