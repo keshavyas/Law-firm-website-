@@ -116,6 +116,8 @@ export async function updateCase(caseId, updates, currentUser) {
   await found.save(); // UPDATE WHERE id = ? with only changed columns
 
   // 🔥 Trigger Auto Email Notification if nextHearing is updated
+  console.log(`[CaseService] Checking nextHearing update. Old: ${oldHearingDate}, New: ${updates.nextHearing}`);
+  
   if (updates.nextHearing && updates.nextHearing !== oldHearingDate) {
     // Fetch client email if not already present (found.client)
     // Actually, we should have included it in the initial fetch for efficiency
