@@ -116,25 +116,31 @@ export async function updateCase(caseId, updates, currentUser) {
   await found.save(); // UPDATE WHERE id = ? with only changed columns
 
   // 🔥 Trigger Auto Email Notification if nextHearing is updated
-  console.log(`[CaseService] Checking nextHearing update. Old: ${oldHearingDate}, New: ${updates.nextHearing}`);
+  console.log(`[CaseService] Checking nextHearing update for case ${caseId}`);
+  console.log(`[CaseService] Old: "${oldHearingDate}" (${typeof oldHearingDate}), New: "${updates.nextHearing}" (${typeof updates.nextHearing})`);
   
-  if (updates.nextHearing && updates.nextHearing !== oldHearingDate) {
-    // Fetch client email if not already present (found.client)
-    // Actually, we should have included it in the initial fetch for efficiency
-    // but found.save() might have updated the instance.
-    // Let's ensure we have the client info.
+  // Normalize comparison (Sequelize DATEONLY can be string or Date object)
+  const oldDateStr = oldHearingDate ? new Date(oldHearingDate).toISOString().split('T')[0] : null;
+  const newDateStr = updates.nextHearing ? new Date(updates.nextHearing).toISOString().split('T')[0] : null;
+
+  if (newDateStr && newDateStr !== oldDateStr) {
+    // Fetch client email if not already present
     const client = await User.findByPk(found.clientId, { attributes: ['email', 'name'] });
     if (client && client.email) {
-      console.log(`[CaseService] Triggering hearing notification for ${client.email}`);
+      console.log(`[CaseService] Triggering hearing notification for ${client.email} (Hearing Date: ${newDateStr})`);
       // Async fire-and-forget
       sendHearingNotification({
         to:          client.email,
         clientName:  client.name,
         caseTitle:   found.title,
         caseId:      found.id,
-        hearingDate: updates.nextHearing,
+        hearingDate: newDateStr,
       }).catch(err => console.error('[CaseService] Email notification error:', err));
+    } else {
+      console.warn(`[CaseService] Skipping email: Client ${found.clientId} not found or has no email`);
     }
+  } else {
+    console.log(`[CaseService] No email sent. Condition not met: newDateStr=${newDateStr}, oldDateStr=${oldDateStr}`);
   }
 
   return found;
