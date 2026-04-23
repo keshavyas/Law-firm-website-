@@ -7,39 +7,47 @@ dotenv.config();
 const transporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.MAIL_PORT || '465'),
-  secure: process.env.MAIL_PORT === '465', // true for 465, false for other ports
+  secure: process.env.MAIL_PORT === '465', 
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
   },
+  // Gmail sometimes needs this for certain environments
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
-// Debug: Check if credentials are loaded (but don't log the password!)
+// Verify connection configuration on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('[MailService] ❌ Transporter verification failed:', error);
+  } else {
+    console.log('[MailService] ✅ Server is ready to take our messages');
+  }
+});
+
+// Debug: Check if credentials are loaded
 if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
   console.warn('[MailService] ⚠️ MAIL_USER or MAIL_PASS is not set in environment variables.');
 } else {
-  console.log(`[MailService] ✅ Mail service initialized for ${process.env.MAIL_USER}`);
+  console.log(`[MailService] ✅ Mail service config found for ${process.env.MAIL_USER}`);
 }
 
 /**
  * Send an email notification to a client about a new hearing date.
  * @param {Object} options
- * @param {string} options.to - Client email
- * @param {string} options.clientName - Client name
- * @param {string} options.caseTitle - Case title
- * @param {string} options.caseId - Case ID
- * @param {string} options.hearingDate - The new hearing date
  */
 export async function sendHearingNotification({ to, clientName, caseTitle, caseId, hearingDate }) {
   console.log(`[MailService] Preparing email for ${to}...`);
   
   if (!to) {
-    console.error('[MailService] No recipient email provided');
-    return;
+    console.error('[MailService] ❌ No recipient email provided');
+    return { success: false, error: 'No recipient' };
   }
 
   const mailOptions = {
-    from: process.env.MAIL_FROM || '"Law Firm Support" <no-reply@lawfirm.com>',
+    from: process.env.MAIL_FROM || `"Law Firm Support" <${process.env.MAIL_USER}>`,
     to,
     subject: `Update: New Hearing Date for Case ${caseId}`,
     text: `Dear ${clientName},
@@ -77,14 +85,14 @@ Law Firm Team`,
   };
 
   try {
-    console.log(`[MailService] Attempting to send email via ${process.env.MAIL_HOST}...`);
+    console.log(`[MailService] Sending email to ${to} using ${process.env.MAIL_HOST}...`);
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[MailService] Email sent successfully to ${to}. MessageId: ${info.messageId}`);
+    console.log(`[MailService] 🚀 Email sent successfully! MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[MailService] Failed to send email to ${to}:`, error.message);
+    console.error(`[MailService] ❌ Failed to send email to ${to}:`, error);
     if (error.code === 'EAUTH') {
-      console.error('[MailService] Authentication error: Please check your MAIL_USER and MAIL_PASS (App Password)');
+      console.error('[MailService] ❌ Authentication error: Check MAIL_USER and MAIL_PASS (App Password)');
     }
     return { success: false, error: error.message };
   }
@@ -93,3 +101,4 @@ Law Firm Team`,
 export default {
   sendHearingNotification,
 };
+
