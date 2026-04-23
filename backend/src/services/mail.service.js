@@ -31,6 +31,8 @@ if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
  * @param {string} options.hearingDate - The new hearing date
  */
 export async function sendHearingNotification({ to, clientName, caseTitle, caseId, hearingDate }) {
+  console.log(`[MailService] Preparing email for ${to}...`);
+  
   if (!to) {
     console.error('[MailService] No recipient email provided');
     return;
@@ -53,7 +55,7 @@ If you have any questions, please contact your lawyer via the dashboard.
 Best regards,
 Law Firm Team`,
     html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; rounded-lg: 12px;">
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
         <h2 style="color: #1f2937; margin-bottom: 20px;">Hearing Date Update</h2>
         <p>Dear <strong>${clientName}</strong>,</p>
         <p>This is an automated notification regarding your case:</p>
@@ -75,11 +77,15 @@ Law Firm Team`,
   };
 
   try {
+    console.log(`[MailService] Attempting to send email via ${process.env.MAIL_HOST}...`);
     const info = await transporter.sendMail(mailOptions);
     console.log(`[MailService] Email sent successfully to ${to}. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error(`[MailService] Failed to send email to ${to}:`, error.message);
+    if (error.code === 'EAUTH') {
+      console.error('[MailService] Authentication error: Please check your MAIL_USER and MAIL_PASS (App Password)');
+    }
     return { success: false, error: error.message };
   }
 }
