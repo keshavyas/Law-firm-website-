@@ -39,6 +39,23 @@ export default async function casesRoutes(fastify) {
     }
   });
 
+  // GET /api/cases/test-email
+  fastify.get('/test-email', async (request, reply) => {
+    try {
+      const { sendHearingNotification } = await import("../services/mail.service.js");
+      const result = await sendHearingNotification({
+        clientEmail: process.env.MAIL_USER,
+        clientName:  "System Admin",
+        caseTitle:   "Production SMTP Test",
+        caseId:      "TEST-999",
+        hearingDate: "2024-12-31"
+      });
+      return sendSuccess(reply, { data: result });
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   // POST /api/cases — client only
   fastify.post('/', {
     preHandler: [authenticate, authorizeRole('client')],
