@@ -6,16 +6,22 @@ dotenv.config();
 
 const transporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.MAIL_PORT || '465'),
-  secure: process.env.MAIL_PORT === '465', 
+  port: parseInt(process.env.MAIL_PORT || '587'),
+  secure: process.env.MAIL_PORT === '465', // true for 465, false for other ports (like 587)
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
   },
-  // Gmail sometimes needs this for certain environments
   tls: {
-    rejectUnauthorized: false
-  }
+    // Do not fail on invalid certificates (useful for some Docker networks)
+    rejectUnauthorized: false,
+    // Forces the use of TLS
+    minVersion: 'TLSv1.2'
+  },
+  // Increase timeouts for slow cloud connections
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 // Verify connection configuration on startup

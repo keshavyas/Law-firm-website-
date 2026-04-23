@@ -51,6 +51,8 @@ export async function createCaseHandler(request, reply) {
 
 //updateCaseHandler
 export async function updateCaseHandler(request, reply) {
+  console.log(`[CasesController] PATCH request received for Case ${request.params.id}`);
+  console.log(`[CasesController] Body:`, JSON.stringify(request.body));
   try {
     const updated = await updateCase(
       request.params.id,
@@ -59,6 +61,7 @@ export async function updateCaseHandler(request, reply) {
     );
     return sendSuccess(reply, { data: { case: updated } });
   } catch (err) {
+    console.error(`[CasesController] Error updating case ${request.params.id}:`, err);
     return sendError(reply, err);
   }
 }
