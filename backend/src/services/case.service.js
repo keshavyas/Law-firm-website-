@@ -84,8 +84,32 @@ export async function createCase(data, currentUser) {
   });
 }
 
+// ── Helper to normalize date strings
+function normalizeDate(d) {
+  if (!d) return null;
+  if (typeof d !== 'string') {
+    try {
+      return new Date(d).toISOString().split('T')[0];
+    } catch (e) { return null; }
+  }
+  // If DD-MM-YYYY
+  const match = d.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (match) {
+    const [_, day, month, year] = match;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  // Try native
+  try {
+    const date = new Date(d);
+    return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
+  } catch (e) { return null; }
+}
+
 // ── updateCase
 export async function updateCase(caseId, updates, currentUser) {
+  console.log(`[CaseService] updateCase called for ${caseId}`);
+  console.log(`[CaseService] RAW updates:`, JSON.stringify(updates));
+
   const found = await Case.findByPk(caseId);
   if (!found) throw notFound(`Case ${caseId} not found`);
 
@@ -104,31 +128,32 @@ export async function updateCase(caseId, updates, currentUser) {
     }
   }
 
-  // Apply partial updates (PATCH = only update what was sent)
+  // Apply partial updates
   if (updates.status      !== undefined) found.status      = updates.status;
   if (updates.lawyerNote  !== undefined) found.lawyerNote  = updates.lawyerNote;
-  if (updates.nextHearing !== undefined) found.nextHearing = updates.nextHearing;
+  
+  // Handle hearing date update with normalization
+  if (updates.nextHearing !== undefined) {
+    const normalized = normalizeDate(updates.nextHearing);
+    console.log(`[CaseService] Normalizing hearing date: "${updates.nextHearing}" -> "${normalized}"`);
+    found.nextHearing = normalized;
+  }
 
-  // Append to timeline — never overwrite (it's a history log)
   found.timeline    = [...found.timeline, { date: today, event: timelineEvent, by: "lawyer" }];
   found.lastUpdated = today;
 
-  await found.save(); // UPDATE WHERE id = ? with only changed columns
+  await found.save();
 
-  // 🔥 Trigger Auto Email Notification if nextHearing is updated
-  console.log(`[CaseService] Checking nextHearing update for case ${caseId}`);
-  console.log(`[CaseService] Old: "${oldHearingDate}" (${typeof oldHearingDate}), New: "${updates.nextHearing}" (${typeof updates.nextHearing})`);
-  
-  // Normalize comparison (Sequelize DATEONLY can be string or Date object)
-  const oldDateStr = oldHearingDate ? new Date(oldHearingDate).toISOString().split('T')[0] : null;
-  const newDateStr = updates.nextHearing ? new Date(updates.nextHearing).toISOString().split('T')[0] : null;
+  // 🔥 Trigger Auto Email Notification
+  const oldDateStr = normalizeDate(oldHearingDate);
+  const newDateStr = normalizeDate(found.nextHearing);
+
+  console.log(`[CaseService] Checking email trigger. Old: ${oldDateStr}, New: ${newDateStr}`);
 
   if (newDateStr && newDateStr !== oldDateStr) {
-    // Fetch client email if not already present
     const client = await User.findByPk(found.clientId, { attributes: ['email', 'name'] });
     if (client && client.email) {
-      console.log(`[CaseService] Triggering hearing notification for ${client.email} (Hearing Date: ${newDateStr})`);
-      // Async fire-and-forget
+      console.log(`[CaseService] Triggering email for ${client.email}`);
       sendHearingNotification({
         to:          client.email,
         clientName:  client.name,
@@ -137,10 +162,10 @@ export async function updateCase(caseId, updates, currentUser) {
         hearingDate: newDateStr,
       }).catch(err => console.error('[CaseService] Email notification error:', err));
     } else {
-      console.warn(`[CaseService] Skipping email: Client ${found.clientId} not found or has no email`);
+      console.warn(`[CaseService] Skip email: Client ${found.clientId} not found or no email`);
     }
   } else {
-    console.log(`[CaseService] No email sent. Condition not met: newDateStr=${newDateStr}, oldDateStr=${oldDateStr}`);
+    console.log(`[CaseService] No email sent. Condition failed or date unchanged.`);
   }
 
   return found;
