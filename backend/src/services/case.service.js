@@ -1,7 +1,8 @@
 
 import { Op }             from "sequelize";
-import { Case }           from "../models/index.js";
+import { Case, User }     from "../models/index.js";
 import { notFound, forbidden } from "../utils/errors.js";
+import { sendHearingNotification } from "./mail.service.js";
 
 // ── getAllCases 
 export async function getAllCases(currentUser, query = {}) {
@@ -88,6 +89,7 @@ export async function updateCase(caseId, updates, currentUser) {
   const found = await Case.findByPk(caseId);
   if (!found) throw notFound(`Case ${caseId} not found`);
 
+  const oldHearingDate = found.nextHearing;
   const today = new Date().toISOString().split("T")[0];
 
   // Build timeline event message automatically if not provided
@@ -112,6 +114,27 @@ export async function updateCase(caseId, updates, currentUser) {
   found.lastUpdated = today;
 
   await found.save(); // UPDATE WHERE id = ? with only changed columns
+
+  // 🔥 Trigger Auto Email Notification if nextHearing is updated
+  if (updates.nextHearing && updates.nextHearing !== oldHearingDate) {
+    // Fetch client email if not already present (found.client)
+    // Actually, we should have included it in the initial fetch for efficiency
+    // but found.save() might have updated the instance.
+    // Let's ensure we have the client info.
+    const client = await User.findByPk(found.clientId, { attributes: ['email', 'name'] });
+    if (client && client.email) {
+      console.log(`[CaseService] Triggering hearing notification for ${client.email}`);
+      // Async fire-and-forget
+      sendHearingNotification({
+        to:          client.email,
+        clientName:  client.name,
+        caseTitle:   found.title,
+        caseId:      found.id,
+        hearingDate: updates.nextHearing,
+      }).catch(err => console.error('[CaseService] Email notification error:', err));
+    }
+  }
+
   return found;
 }
 
