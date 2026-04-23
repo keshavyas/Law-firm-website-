@@ -44,7 +44,7 @@ export default async function casesRoutes(fastify) {
     try {
       const { sendHearingNotification } = await import("../services/mail.service.js");
       const result = await sendHearingNotification({
-        clientEmail: process.env.MAIL_USER,
+        to:          process.env.MAIL_USER || 'keshav.qualwebs@gmail.com',
         clientName:  "System Admin",
         caseTitle:   "Production SMTP Test",
         caseId:      "TEST-999",
