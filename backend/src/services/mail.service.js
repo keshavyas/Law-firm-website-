@@ -14,6 +14,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Debug: Check if credentials are loaded (but don't log the password!)
+if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+  console.warn('[MailService] ⚠️ MAIL_USER or MAIL_PASS is not set in environment variables.');
+} else {
+  console.log(`[MailService] ✅ Mail service initialized for ${process.env.MAIL_USER}`);
+}
+
 /**
  * Send an email notification to a client about a new hearing date.
  * @param {Object} options

@@ -42,6 +42,11 @@ services:
       JWT_SECRET:     ${JWT_SECRET}
       FRONTEND_URL:   ${FRONTEND_URL}
       AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-service:3002}
+      MAIL_HOST:      ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT:      ${MAIL_PORT:-465}
+      MAIL_USER:      ${MAIL_USER}
+      MAIL_PASS:      ${MAIL_PASS}
+      MAIL_FROM:      ${MAIL_FROM}
     volumes:
       - uploads_data:/app/uploads
     ports:
