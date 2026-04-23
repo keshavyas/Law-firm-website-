@@ -49,6 +49,9 @@ services:
       MAIL_FROM:      ${MAIL_FROM}
     volumes:
       - uploads_data:/app/uploads
+      - ./backend/src:/app/src:ro
+      - ./backend/package.json:/app/package.json:ro
+      - ./backend/entrypoint.sh:/app/entrypoint.sh:ro
     ports:
       - "3001:3001"
     networks:

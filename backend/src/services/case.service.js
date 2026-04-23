@@ -148,20 +148,25 @@ export async function updateCase(caseId, updates, currentUser) {
   const oldDateStr = normalizeDate(oldHearingDate);
   const newDateStr = normalizeDate(found.nextHearing);
 
-  console.log(`[CaseService] Checking email trigger logic:`);
-  console.log(` - Old Date (normalized): ${oldDateStr}`);
-  console.log(` - New Date (normalized): ${newDateStr}`);
+  console.log(`[CaseService] --- EMAIL TRIGGER CHECK ---`);
+  console.log(`[CaseService] Case ID: ${caseId}`);
+  console.log(`[CaseService] Old Date: ${oldDateStr}`);
+  console.log(`[CaseService] New Date: ${newDateStr}`);
+  console.log(`[CaseService] Client ID: ${found.clientId}`);
 
   if (newDateStr && newDateStr !== oldDateStr) {
-    console.log(`[CaseService] ⚡ Condition met: Date changed to ${newDateStr}. Fetching client...`);
+    console.log(`[CaseService] ✅ TRIGGER CONDITION MET. Fetching client email...`);
     
-    const client = await User.findByPk(found.clientId, { attributes: ['email', 'name'] });
-    
-    if (client && client.email) {
-      console.log(`[CaseService] 📧 Client found: ${client.name} (${client.email}). Calling mail service...`);
+    try {
+      const client = await User.findByPk(found.clientId, { attributes: ['email', 'name'] });
       
-      // We await it here to ensure errors are caught and logged in the main flow
-      try {
+      if (!client) {
+        console.error(`[CaseService] ❌ ERROR: Client with ID ${found.clientId} not found in database!`);
+      } else if (!client.email) {
+        console.error(`[CaseService] ❌ ERROR: Client found (${client.name}) but has NO EMAIL address!`);
+      } else {
+        console.log(`[CaseService] 📧 Sending email to: ${client.name} <${client.email}>`);
+        
         const mailResult = await sendHearingNotification({
           to:          client.email,
           clientName:  client.name,
@@ -171,19 +176,19 @@ export async function updateCase(caseId, updates, currentUser) {
         });
         
         if (mailResult && mailResult.success) {
-          console.log(`[CaseService] ✅ Email dispatch successful for Case ${caseId}`);
+          console.log(`[CaseService] 🚀 SUCCESS: Email delivered to ${client.email} (MsgID: ${mailResult.messageId})`);
         } else {
-          console.error(`[CaseService] ❌ Email dispatch failed:`, mailResult?.error || 'Unknown error');
+          console.error(`[CaseService] ❌ FAILURE: Mail service returned error:`, mailResult?.error);
         }
-      } catch (mailErr) {
-        console.error('[CaseService] ❌ Critical error calling email service:', mailErr);
       }
-    } else {
-      console.warn(`[CaseService] ⚠️ Skip email: Client ${found.clientId} not found or missing email`);
+    } catch (dbErr) {
+      console.error(`[CaseService] ❌ DB ERROR while fetching client:`, dbErr);
     }
   } else {
-    console.log(`[CaseService] ℹ️ No email sent. Date unchanged or invalid.`);
+    console.log(`[CaseService] ℹ️ TRIGGER SKIPPED: Date didn't change or is invalid.`);
   }
+
+  console.log(`[CaseService] --- END EMAIL TRIGGER CHECK ---`);
 
   return found;
 }
