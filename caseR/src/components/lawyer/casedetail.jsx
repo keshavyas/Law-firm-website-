@@ -189,7 +189,7 @@ export default function LawyerCaseDetail({ caseId, onBack, onNavigate }) {
         </div>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs font-mono text-black-400 mb-1">{caseData.id}</p>
+            <p className="text-xs font-mono text-green-400 mb-1">{caseData.id}</p>
             <h1 className="text-2xl font-serif font-medium text-stone-800">{caseData.title}</h1>
             <p className="text-sm text-stone-500 mt-1">{caseData.category} · Client: {caseData.clientName}</p>
           </div>
