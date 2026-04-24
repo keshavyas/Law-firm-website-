@@ -189,7 +189,7 @@ export default function LawyerCaseDetail({ caseId, onBack, onNavigate }) {
         </div>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs font-mono text-stone-400 mb-1">{caseData.id}</p>
+            <p className="text-xs font-mono text-black-400 mb-1">{caseData.id}</p>
             <h1 className="text-2xl font-serif font-medium text-stone-800">{caseData.title}</h1>
             <p className="text-sm text-stone-500 mt-1">{caseData.category} · Client: {caseData.clientName}</p>
           </div>
@@ -346,7 +346,7 @@ export default function LawyerCaseDetail({ caseId, onBack, onNavigate }) {
               <div>
                 <label className="text-xs text-stone-500 block mb-1">Next Hearing</label>
                 <input type="date" value={nextHearing} onChange={e => setNextHearing(e.target.value)} className="w-full text-sm px-3 py-2 border border-stone-200 rounded-xl bg-white" />
-                <p className="text-[10px] text-stone-400 mt-1 ml-1">Updating this will automatically notify the client via email.</p>
+                <p className="text-[10px] text-black-400 mt-1 ml-1">Updating this will automatically notify the client via email.</p>
               </div>
               {updateMsg && <p className={`text-xs px-2 py-1 rounded ${updateMsg.startsWith('❌') ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>{updateMsg}</p>}
               <button type="submit" disabled={updating} className="w-full bg-stone-800 text-white text-sm py-2.5 rounded-xl disabled:opacity-50 hover:bg-stone-700">
