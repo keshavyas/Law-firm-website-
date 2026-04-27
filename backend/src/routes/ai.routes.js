@@ -25,6 +25,12 @@ function getOllamaUrl() {
 let _pdfParse = null;
 async function extractPdfText(buffer) {
   if (!_pdfParse) {
+    if (typeof global.DOMMatrix === 'undefined') {
+      global.DOMMatrix = class DOMMatrix {};
+    }
+    if (typeof global.Path2D === 'undefined') {
+      global.Path2D = class Path2D {};
+    }
     const mod = await import('pdf-parse');
     _pdfParse = mod.default || mod;
   }
@@ -45,7 +51,11 @@ async function extractImageTextViaOllama(buffer) {
   try {
     const response = await fetch(`${ollamaBase}/api/generate`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'node-fetch'
+      },
       signal:  controller.signal,
       body:    JSON.stringify({
         model:  visionModel,
@@ -95,7 +105,11 @@ Keep it concise and professional.`;
   try {
     const response = await fetch(OLLAMA_URL, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'node-fetch'
+      },
       signal:  controller.signal,
       body:    JSON.stringify({ model: AI_MODEL, prompt, stream: false }),
     });
@@ -254,7 +268,10 @@ export default async function aiRoutes(fastify) {
   }, async (request, reply) => {
     const OLLAMA_URL = getOllamaUrl().replace('/api/generate', '/api/tags');
     try {
-      const res = await fetch(OLLAMA_URL, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(OLLAMA_URL, {
+        headers: { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'node-fetch' },
+        signal: AbortSignal.timeout(5000)
+      });
       const json = await res.json().catch(() => ({}));
       const models = (json.models || []).map(m => m.name);
       return sendSuccess(reply, { data: { ollama: 'reachable', url: OLLAMA_URL, models } });
