@@ -186,11 +186,33 @@ export const api = {
     return data;
   },
 
-  // AI SUMMARIZE
+  // AI SUMMARIZE — case description text
   // POST /api/ai/summarize
   summarize: (caseId) =>
     request('/api/ai/summarize', {
       method: 'POST',
       body:   JSON.stringify({ case_id: caseId }),
     }),
+
+  // AI SUMMARIZE — PDF or image file upload
+  // POST /api/ai/summarize-file (multipart/form-data)
+  summarizeFile: async (file) => {
+    const token    = tokenHelpers.get();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${BASE_URL}/api/ai/summarize-file`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body:    formData,
+    });
+
+    const text = await response.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch (_) {
+      throw new Error(`Non-JSON response: ${text.slice(0, 100)}`);
+    }
+    if (!response.ok) throw new Error(data.error?.message || 'File summarization failed');
+    return data;
+  },
 };
