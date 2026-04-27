@@ -25,6 +25,12 @@ function getOllamaUrl() {
 let _pdfParse = null;
 async function extractPdfText(buffer) {
   if (!_pdfParse) {
+    if (typeof global.DOMMatrix === 'undefined') {
+      global.DOMMatrix = class DOMMatrix {};
+    }
+    if (typeof global.Path2D === 'undefined') {
+      global.Path2D = class Path2D {};
+    }
     const mod = await import('pdf-parse');
     _pdfParse = mod.default || mod;
   }
@@ -45,7 +51,11 @@ async function extractImageTextViaOllama(buffer) {
   try {
     const response = await fetch(`${ollamaBase}/api/generate`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'node-fetch'
+      },
       signal:  controller.signal,
       body:    JSON.stringify({
         model:  visionModel,
@@ -95,7 +105,11 @@ Keep it concise and professional.`;
   try {
     const response = await fetch(OLLAMA_URL, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'node-fetch'
+      },
       signal:  controller.signal,
       body:    JSON.stringify({ model: AI_MODEL, prompt, stream: false }),
     });
@@ -130,13 +144,30 @@ export default async function aiRoutes(fastify) {
       if (case_id) {
         try {
           const caseData = await getCaseById(case_id, request.currentUser);
+          let docsText = '';
+          if (caseData.documents && caseData.documents.length > 0) {
+            const docName = caseData.documents[caseData.documents.length - 1]; // latest doc
+            const docPath = join(UPLOAD_DIR, docName);
+            if (existsSync(docPath)) {
+               const buffer = await readFile(docPath);
+               const ext = extname(docPath).toLowerCase();
+               try {
+                 if (ext === '.pdf') docsText = await extractPdfText(buffer);
+                 else if (['.jpg','.png','.jpeg','.webp'].includes(ext)) docsText = await extractImageTextViaOllama(buffer);
+               } catch (e) {
+                 console.error('[AI] Document parsing failed:', e.message);
+               }
+            }
+          }
+
           textToSummarize =
             `Title: ${caseData.title}\n` +
             `Category: ${caseData.category}\n` +
             `Status: ${caseData.status}\n` +
             `Description: ${caseData.description}\n` +
             (caseData.lawyerNote ? `Lawyer Notes: ${caseData.lawyerNote}\n` : '') +
-            (caseData.nextHearing ? `Next Hearing: ${caseData.nextHearing}\n` : '');
+            (caseData.nextHearing ? `Next Hearing: ${caseData.nextHearing}\n` : '') +
+            (docsText ? `\n--- Attached Document ---\n${docsText}` : '');
         } catch (fetchErr) {
           console.error(`[AI] Case fetch failed: ${fetchErr.message}`);
         }
@@ -254,7 +285,10 @@ export default async function aiRoutes(fastify) {
   }, async (request, reply) => {
     const OLLAMA_URL = getOllamaUrl().replace('/api/generate', '/api/tags');
     try {
-      const res = await fetch(OLLAMA_URL, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(OLLAMA_URL, {
+        headers: { 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'node-fetch' },
+        signal: AbortSignal.timeout(5000)
+      });
       const json = await res.json().catch(() => ({}));
       const models = (json.models || []).map(m => m.name);
       return sendSuccess(reply, { data: { ollama: 'reachable', url: OLLAMA_URL, models } });
