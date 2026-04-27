@@ -88,6 +88,7 @@ async function callOllama(textToSummarize, timeoutMs = 30000) {
     : textToSummarize;
 
   const prompt = `You are a legal assistant. Summarize the following case information clearly and professionally.
+If an "Attached Document" section is provided in the text, you MUST include a summary of it under the header "Attached Document Summary:".
 
 ${content}
 
@@ -96,6 +97,7 @@ Overview:
 Key Facts:
 Legal Context:
 Next Steps:
+Attached Document Summary: (Include this ONLY if an attached document is present in the text above)
 
 Keep it concise and professional.`;
 

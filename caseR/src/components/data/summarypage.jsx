@@ -32,7 +32,7 @@ export default function SummaryPage({ caseId, onBack }) {
 
   // Render summary text — detect section headers and bold them
   function renderSummary(text) {
-    const headers = ['Overview:', 'Key Facts:', 'Legal Context:', 'Next Steps:'];
+    const headers = ['Overview:', 'Key Facts:', 'Legal Context:', 'Next Steps:', 'Attached Document Summary:'];
     return text.split('\n').filter(l => l.trim()).map((line, i) => {
       const isHeader = headers.some(h => line.trim().startsWith(h));
       return isHeader
