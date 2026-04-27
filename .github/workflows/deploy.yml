@@ -42,15 +42,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ✅ Build & Push AI Service
-      - name: Build/Push AI Service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./ai-service
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/democase_ai:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   deploy:
     needs: build-and-push
@@ -63,13 +54,13 @@ jobs:
           DB_PASS: ${{ secrets.DB_PASS }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.0-flash' }}
+          OLLAMA_URL: ${{ secrets.OLLAMA_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL || 'phi' }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST,GOOGLE_API_KEY,GEMINI_MODEL
+          envs: DOCKER_USERNAME,DB_PASS,JWT_SECRET,EC2_HOST,OLLAMA_URL,AI_MODEL
           script: |
             set -e
             mkdir -p ~/Case-manager
@@ -116,7 +107,8 @@ jobs:
                   DATABASE_URL:   postgres://postgres:$DB_PASS@db:5432/case_db
                   JWT_SECRET:     $JWT_SECRET
                   FRONTEND_URL:   http://$EC2_HOST
-                  AI_SERVICE_URL: http://ai-service:3002
+                  OLLAMA_URL:     $OLLAMA_URL
+                  AI_MODEL:       $AI_MODEL
                 volumes:
                   - uploads_data:/app/uploads
                 ports:
@@ -144,23 +136,6 @@ jobs:
                   - backend
                 restart: unless-stopped
 
-              ai-service:
-                image: $DOCKER_USERNAME/democase_ai:latest
-                container_name: democase_ai
-                environment:
-                  - GOOGLE_API_KEY=$GOOGLE_API_KEY
-                  - GEMINI_MODEL=$GEMINI_MODEL
-                  - DATABASE_URL=postgres://postgres:$DB_PASS@db:5432/case_db
-                ports:
-                  - "3002:3002"
-                volumes:
-                  - uploads_data:/app/uploads:ro
-                networks:
-                  - democase
-                depends_on:
-                  db:
-                    condition: service_healthy
-                restart: unless-stopped
             
             volumes:
               postgres_data:
@@ -175,8 +150,8 @@ jobs:
             # Using explicit docker stop/rm by name is the most reliable way to 
             # bypass v1.x bugs (KeyError: ContainerConfig) and network locks.
             sudo docker-compose pull
-            sudo docker stop democase_frontend democase_backend democase_ai case_db || true
-            sudo docker rm democase_frontend democase_backend democase_ai case_db || true
+            sudo docker stop democase_frontend democase_backend case_db || true
+            sudo docker rm democase_frontend democase_backend case_db || true
             sudo docker-compose up -d
             
             # 🧹 Cleanup
