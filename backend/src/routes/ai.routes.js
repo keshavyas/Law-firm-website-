@@ -15,16 +15,18 @@ if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 // In production: OLLAMA_URL secret = ngrok tunnel to local machine
 // In development: falls back to localhost:11434
 function getOllamaUrl() {
-  if (process.env.OLLAMA_URL) return process.env.OLLAMA_URL;
-  return 'http://localhost:11434/api/generate';
+  let url = process.env.OLLAMA_URL || 'http://localhost:11434/api/generate';
+  if (url.endsWith('/')) url = url.slice(0, -1);
+  if (!url.endsWith('/api/generate')) url += '/api/generate';
+  return url;
 }
 
 // ── Lazy-load heavy extractors so startup is fast ────────────────────────────
 let _pdfParse = null;
 async function extractPdfText(buffer) {
   if (!_pdfParse) {
-    const mod = await import('pdf-parse/lib/pdf-parse.js');
-    _pdfParse = mod.default;
+    const mod = await import('pdf-parse');
+    _pdfParse = mod.default || mod;
   }
   const data = await _pdfParse(buffer);
   return data.text || '';
