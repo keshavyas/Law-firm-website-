@@ -13,19 +13,26 @@ const cfg = config[env];
 
 console.log(`\n🔍 Initializing Sequelize [${env}] → ${cfg.host}:${cfg.port}/${cfg.database}`);
 
-const sequelize = new Sequelize(
-  cfg.database,
-  cfg.username,
-  cfg.password,
-  {
-    host:           cfg.host,
-    port:           cfg.port,
-    dialect:        cfg.dialect,
-    logging:        cfg.logging,
-    pool:           cfg.pool,
-    dialectOptions: cfg.dialectOptions,
-  }
-);
+const sequelize = cfg.url
+  ? new Sequelize(cfg.url, {
+      dialect:        cfg.dialect,
+      logging:        cfg.logging,
+      pool:           cfg.pool,
+      dialectOptions: cfg.dialectOptions,
+    })
+  : new Sequelize(
+      cfg.database,
+      cfg.username,
+      cfg.password,
+      {
+        host:           cfg.host,
+        port:           cfg.port,
+        dialect:        cfg.dialect,
+        logging:        cfg.logging,
+        pool:           cfg.pool,
+        dialectOptions: cfg.dialectOptions,
+      }
+    );
 
 export async function testConnection() {
   const MAX_RETRIES = 5;
