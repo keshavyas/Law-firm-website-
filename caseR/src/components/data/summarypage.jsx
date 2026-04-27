@@ -97,8 +97,7 @@ export default function SummaryPage({ caseId, onBack }) {
             </div>
             <div>{renderSummary(summary)}</div>
           </div>
-
-        )}
+        ) : null}
       </div>
 
       <p className="text-center text-xs text-stone-400">
