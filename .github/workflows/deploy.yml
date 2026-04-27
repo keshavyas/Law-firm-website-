@@ -54,7 +54,7 @@ jobs:
           DB_PASS: ${{ secrets.DB_PASS }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
-          OLLAMA_URL: ${{ secrets.OLLAMA_URL }}
+          OLLAMA_URL: ${{ secrets.OLLAMA_URL || 'http://host.docker.internal:11434/api/generate' }}
           AI_MODEL: ${{ secrets.AI_MODEL || 'phi' }}
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -109,6 +109,8 @@ jobs:
                   FRONTEND_URL:   http://$EC2_HOST
                   OLLAMA_URL:     $OLLAMA_URL
                   AI_MODEL:       $AI_MODEL
+                extra_hosts:
+                  - "host.docker.internal:host-gateway"
                 volumes:
                   - uploads_data:/app/uploads
                 ports:
@@ -146,8 +148,35 @@ jobs:
                 driver: bridge
             EOF
             
+            # 🤖 Install / start Ollama on EC2 host (runs outside Docker)
+            if ! command -v ollama &> /dev/null; then
+              echo "Installing Ollama..."
+              curl -fsSL https://ollama.com/install.sh | sh
+            else
+              echo "Ollama already installed: $(ollama --version)"
+            fi
+            
+            # Ensure Ollama listens on all interfaces so Docker containers can reach it
+            sudo mkdir -p /etc/systemd/system/ollama.service.d
+            sudo tee /etc/systemd/system/ollama.service.d/override.conf > /dev/null <<OLLAMAEOF
+            [Service]
+            Environment="OLLAMA_HOST=0.0.0.0"
+            OLLAMAEOF
+            sudo systemctl daemon-reload
+            sudo systemctl enable ollama
+            sudo systemctl restart ollama
+            sleep 5
+            
+            # Pull the phi model if not already present
+            if ! ollama list | grep -q "phi"; then
+              echo "Pulling phi model..."
+              ollama pull phi
+            else
+              echo "phi model already available"
+            fi
+            
             # 🚀 Pull and Restart fresh
-            # Using explicit docker stop/rm by name is the most reliable way to 
+            # Using explicit docker stop/rm by name is the most reliable way to
             # bypass v1.x bugs (KeyError: ContainerConfig) and network locks.
             sudo docker-compose pull
             sudo docker stop democase_frontend democase_backend case_db || true
