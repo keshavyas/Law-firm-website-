@@ -12,12 +12,10 @@ const UPLOAD_DIR = join(__dirname, '..', '..', 'uploads');
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // ── Ollama URL resolution ────────────────────────────────────────────────────
-// Priority: env var → host.docker.internal (EC2 production) → localhost (dev)
+// In production: OLLAMA_URL secret = ngrok tunnel to local machine
+// In development: falls back to localhost:11434
 function getOllamaUrl() {
   if (process.env.OLLAMA_URL) return process.env.OLLAMA_URL;
-  if (process.env.NODE_ENV === 'production') {
-    return 'http://host.docker.internal:11434/api/generate';
-  }
   return 'http://localhost:11434/api/generate';
 }
 
