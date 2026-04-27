@@ -144,13 +144,30 @@ export default async function aiRoutes(fastify) {
       if (case_id) {
         try {
           const caseData = await getCaseById(case_id, request.currentUser);
+          let docsText = '';
+          if (caseData.documents && caseData.documents.length > 0) {
+            const docName = caseData.documents[caseData.documents.length - 1]; // latest doc
+            const docPath = join(UPLOAD_DIR, docName);
+            if (existsSync(docPath)) {
+               const buffer = await readFile(docPath);
+               const ext = extname(docPath).toLowerCase();
+               try {
+                 if (ext === '.pdf') docsText = await extractPdfText(buffer);
+                 else if (['.jpg','.png','.jpeg','.webp'].includes(ext)) docsText = await extractImageTextViaOllama(buffer);
+               } catch (e) {
+                 console.error('[AI] Document parsing failed:', e.message);
+               }
+            }
+          }
+
           textToSummarize =
             `Title: ${caseData.title}\n` +
             `Category: ${caseData.category}\n` +
             `Status: ${caseData.status}\n` +
             `Description: ${caseData.description}\n` +
             (caseData.lawyerNote ? `Lawyer Notes: ${caseData.lawyerNote}\n` : '') +
-            (caseData.nextHearing ? `Next Hearing: ${caseData.nextHearing}\n` : '');
+            (caseData.nextHearing ? `Next Hearing: ${caseData.nextHearing}\n` : '') +
+            (docsText ? `\n--- Attached Document ---\n${docsText}` : '');
         } catch (fetchErr) {
           console.error(`[AI] Case fetch failed: ${fetchErr.message}`);
         }
