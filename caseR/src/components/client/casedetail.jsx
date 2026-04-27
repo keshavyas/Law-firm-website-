@@ -1,27 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
-import { api }                         from '../../services/api.js';
-import { useApp }                      from '../context/appcontext.jsx';
+import { api } from '../../services/api.js';
+import { useApp } from '../context/appcontext.jsx';
 
 export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
   const { loading } = useApp();
 
-  const [caseData,  setCaseData]  = useState(null);
-  const [matters,   setMatters]   = useState([]);
-  const [fetching,  setFetching]  = useState(true);
+  const [caseData, setCaseData] = useState(null);
+  const [matters, setMatters] = useState([]);
+  const [fetching, setFetching] = useState(true);
   const [pageError, setPageError] = useState('');
 
   // Matter form
-  const [matterOpen,     setMatterOpen]     = useState(false);
-  const [matterTitle,    setMatterTitle]    = useState('');
-  const [matterDesc,     setMatterDesc]     = useState('');
+  const [matterOpen, setMatterOpen] = useState(false);
+  const [matterTitle, setMatterTitle] = useState('');
+  const [matterDesc, setMatterDesc] = useState('');
   const [matterPriority, setMatterPriority] = useState('medium');
-  const [matterMsg,      setMatterMsg]      = useState('');
-  const [matterErr,      setMatterErr]      = useState('');
-  const [submitting,     setSubmitting]     = useState(false);
+  const [matterMsg, setMatterMsg] = useState('');
+  const [matterErr, setMatterErr] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // Upload
-  const [uploading,  setUploading]  = useState(false);
-  const [uploadMsg,  setUploadMsg]  = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -64,9 +64,9 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
     setSubmitting(true);
     try {
       const res = await api.createMatter(caseId, {
-        title:       matterTitle.trim(),
+        title: matterTitle.trim(),
         description: matterDesc.trim() || undefined,
-        priority:    matterPriority,
+        priority: matterPriority,
       });
 
       const newMatter = res.data?.matter;
@@ -118,9 +118,9 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
     console.log('Initiating download for:', filename);
     try {
       const token = localStorage.getItem('democase_token');
-      const BASE  = import.meta.env.VITE_API_URL !== undefined ? import.meta.env.VITE_API_URL : '';
-      const url   = `${BASE}/api/cases/${caseId}/documents/${encodeURIComponent(filename)}`;
-      
+      const BASE = import.meta.env.VITE_API_URL !== undefined ? import.meta.env.VITE_API_URL : '';
+      const url = `${BASE}/api/cases/${caseId}/documents/${encodeURIComponent(filename)}`;
+
       console.log('Fetching from:', url);
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 
@@ -129,13 +129,13 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
         throw new Error('Download failed');
       }
 
-      const blob  = await res.blob();
+      const blob = await res.blob();
       console.log('Blob received:', blob.size, 'bytes');
-      
+
       const blobUrl = window.URL.createObjectURL(blob);
-      const a       = document.createElement('a');
-      a.href        = blobUrl;
-      a.download    = filename.replace(/^[A-Z0-9-]+_\d+_/, '') || filename;
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename.replace(/^[A-Z0-9-]+_\d+_/, '') || filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -147,9 +147,9 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
     }
   }
 
-  if (fetching)   return <p className="p-6 text-stone-400 text-sm">Loading case...</p>;
-  if (pageError)  return <div className="p-6"><p className="text-red-600 text-sm mb-3">{pageError}</p><button onClick={onBack} className="text-sm text-stone-500">← Back</button></div>;
-  if (!caseData)  return null;
+  if (fetching) return <p className="p-6 text-stone-400 text-sm">Loading case...</p>;
+  if (pageError) return <div className="p-6"><p className="text-red-600 text-sm mb-3">{pageError}</p><button onClick={onBack} className="text-sm text-stone-500">← Back</button></div>;
+  if (!caseData) return null;
 
   return (
     <div className="p-6 max-w-4xl space-y-6">
@@ -158,7 +158,7 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
       <div>
         <div className="flex justify-between items-center mb-3">
           <button onClick={onBack} className="text-sm text-stone-500 hover:text-stone-700 block">← Back to cases</button>
-          <button 
+          <button
             onClick={() => onNavigate('summary', caseId)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg text-xs font-medium hover:bg-stone-200 transition-colors border border-stone-200"
           >
@@ -187,16 +187,16 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
             {!caseData.timeline?.length
               ? <p className="text-xl text-stone-400">No events yet</p>
               : <div className="space-y-3">
-                  {caseData.timeline.map((ev, i) => (
-                    <div key={i} className="flex gap-3">
-                      <div className="w-1.5 h-1.5 rounded-full bg-stone-400 mt-1.5 shrink-0" />
-                      <div>
-                        <p className="text-base font-medium text-stone-700">{ev.event}</p>
-                        <p className="text-sm text-stone-400 mt-0.5">{ev.date} · by {ev.by}</p>
-                      </div>
+                {caseData.timeline.map((ev, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-stone-400 mt-1.5 shrink-0" />
+                    <div>
+                      <p className="text-base font-medium text-stone-700">{ev.event}</p>
+                      <p className="text-sm text-stone-400 mt-0.5">{ev.date} · by {ev.by}</p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
             }
           </Card>
 
@@ -307,24 +307,24 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
 
             {caseData.documents?.length > 0
               ? <div className="space-y-2 mb-3">
-                  {caseData.documents.map((doc, i) => {
-                    const name = doc.replace(/^[A-Z0-9-]+_\d+_/, '') || doc;
-                    return (
-                      <div key={i} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span>📄</span>
-                          <p className="text-xs text-stone-700 truncate" title={name}>{name}</p>
-                        </div>
-                        <button
-                          onClick={() => handleDownload(doc)}
-                          className="ml-2 text-xs text-stone-500 hover:text-stone-800 underline shrink-0"
-                        >
-                          ⬇ Save
-                        </button>
+                {caseData.documents.map((doc, i) => {
+                  const name = doc.replace(/^[A-Z0-9-]+_\d+_/, '') || doc;
+                  return (
+                    <div key={i} className="flex items-center justify-between bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span>📄</span>
+                        <p className="text-xs text-stone-700 truncate" title={name}>{name}</p>
                       </div>
-                    );
-                  })}
-                </div>
+                      <button
+                        onClick={() => handleDownload(doc)}
+                        className="ml-2 text-xs text-stone-500 hover:text-stone-800 underline shrink-0"
+                      >
+                        ⬇ Save
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
               : <p className="text-xs text-stone-400 mb-3">No documents yet</p>
             }
 
@@ -346,11 +346,10 @@ export default function ClientCaseDetail({ caseId, onBack, onNavigate }) {
             />
 
             {uploadMsg && (
-              <p className={`text-xs mt-2 px-3 py-2 rounded-lg ${
-                uploadMsg.startsWith('❌') ? 'bg-red-50 text-red-600' :
-                uploadMsg === 'Uploading...' ? 'bg-blue-50 text-blue-600' :
-                'bg-green-50 text-green-700'
-              }`}>{uploadMsg}</p>
+              <p className={`text-xs mt-2 px-3 py-2 rounded-lg ${uploadMsg.startsWith('❌') ? 'bg-red-50 text-red-600' :
+                  uploadMsg === 'Uploading...' ? 'bg-blue-50 text-blue-600' :
+                    'bg-green-50 text-green-700'
+                }`}>{uploadMsg}</p>
             )}
           </Card>
         </div>
@@ -369,11 +368,11 @@ function Card({ title, children }) {
 }
 
 function SBadge({ status }) {
-  const s = { pending:'bg-amber-100 text-amber-800', active:'bg-blue-100 text-blue-800', urgent:'bg-red-100 text-red-800', resolved:'bg-green-100 text-green-800', closed:'bg-stone-100 text-stone-600' };
-  return <span className={`px-3 py-1 rounded-full text-sm font-medium ${s[status]||s.pending}`}>{status}</span>;
+  const s = { pending: 'bg-amber-100 text-amber-800', active: 'bg-blue-100 text-blue-800', urgent: 'bg-red-100 text-red-800', resolved: 'bg-green-100 text-green-800', closed: 'bg-stone-100 text-stone-600' };
+  return <span className={`px-3 py-1 rounded-full text-sm font-medium ${s[status] || s.pending}`}>{status}</span>;
 }
 
 function MBadge({ status }) {
-  const s = { open:'bg-stone-100 text-stone-600', in_progress:'bg-blue-100 text-blue-700', pending_review:'bg-purple-100 text-purple-700', on_hold:'bg-amber-100 text-amber-700', closed:'bg-green-100 text-green-700' };
-  return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s[status]||s.open}`}>{status?.replace(/_/g,' ')}</span>;
+  const s = { open: 'bg-stone-100 text-stone-600', in_progress: 'bg-blue-100 text-blue-700', pending_review: 'bg-purple-100 text-purple-700', on_hold: 'bg-amber-100 text-amber-700', closed: 'bg-green-100 text-green-700' };
+  return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s[status] || s.open}`}>{status?.replace(/_/g, ' ')}</span>;
 }

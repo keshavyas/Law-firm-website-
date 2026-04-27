@@ -44,15 +44,22 @@ async function request(path, options = {}) {
     headers,
   });
 
-  // Parse JSON response
-  const data = await response.json();
+  // Parse JSON response safely
+  let data = {};
+  const text = await response.text();
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (err) {
+    console.error('Failed to parse JSON:', text);
+    throw new Error(`Server returned non-JSON response: ${text.slice(0, 100)}`);
+  }
 
   // If status is not 2xx (200-299), throw an error
-  // This lets us use try/catch in components
   if (!response.ok) {
-    const error = new Error(data.error?.message || 'Request failed');
+    const message = data.error?.message || data.message || 'Request failed';
+    const error = new Error(message);
     error.status  = response.status;
-    error.code    = data.error?.code;
+    error.code    = data.error?.code || data.code;
     throw error;
   }
 

@@ -21,16 +21,19 @@ const config = {
   },
 
   production: {
+    // If DATABASE_URL is provided, Sequelize can use it directly.
+    // Otherwise, we fall back to individual components.
+    url:      process.env.DATABASE_URL, 
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASS,
     database: process.env.DB_NAME || 'case_db',
-    host:     process.env.DB_HOST || 'db',             // Use env var or default to Docker 'db' alias
-    port:     5432,
+    host:     process.env.DB_HOST || 'db',
+    port:     parseInt(process.env.DB_PORT) || 5432,
     dialect:  'postgres',
     logging:  false,
     pool: { max: 10, min: 2, acquire: 30000, idle: 10000 },
     dialectOptions: {
-      ssl: false,
+      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
     },
   },
 };
