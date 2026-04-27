@@ -65,7 +65,19 @@ jobs:
             set -e
             mkdir -p ~/Case-manager
             cd ~/Case-manager
-            
+
+            # 🧹 FREE DISK SPACE — must run before anything else on t3.micro
+            echo "=== Disk before cleanup ==="
+            df -h /
+            # Remove all stopped containers, unused images, dangling volumes
+            sudo docker system prune -af --volumes || true
+            # Clear apt cache
+            sudo apt-get clean || true
+            # Vacuum systemd journal logs (keep last 50MB)
+            sudo journalctl --vacuum-size=50M || true
+            echo "=== Disk after cleanup ==="
+            df -h /
+
             # 🔥 Generate the optimized docker-compose.yml matching our current working setup
             cat << EOF > docker-compose.yml
             version: '3.8'

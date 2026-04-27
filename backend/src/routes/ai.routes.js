@@ -30,19 +30,38 @@ async function extractPdfText(buffer) {
   return data.text || '';
 }
 
-let _tesseract = null;
-async function extractImageText(buffer, mimeType) {
-  if (!_tesseract) {
-    const mod = await import('tesseract.js');
-    _tesseract = mod;
-  }
-  const { createWorker } = _tesseract;
-  const worker = await createWorker('eng');
+// ── Image text extraction via Ollama vision model (llava / moondream) ─────────
+// Runs entirely on the local machine — no heavy OCR library on the server.
+async function extractImageTextViaOllama(buffer) {
+  const base64      = buffer.toString('base64');
+  const ollamaBase  = getOllamaUrl().replace('/api/generate', '');
+  const visionModel = process.env.AI_VISION_MODEL || 'llava';
+
+  const controller = new AbortController();
+  const timeoutId  = setTimeout(() => controller.abort(), 60000);
+
   try {
-    const { data: { text } } = await worker.recognize(buffer);
-    return text || '';
+    const response = await fetch(`${ollamaBase}/api/generate`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal:  controller.signal,
+      body:    JSON.stringify({
+        model:  visionModel,
+        prompt: 'Extract and return ALL text visible in this image. Return only the raw text, preserving structure. No commentary.',
+        images: [base64],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text().catch(() => '');
+      throw new Error(`Vision model (${visionModel}) error ${response.status}: ${err.slice(0, 200)}`);
+    }
+
+    const result = await response.json();
+    return (result.response || '').trim();
   } finally {
-    await worker.terminate();
+    clearTimeout(timeoutId);
   }
 }
 
@@ -189,10 +208,10 @@ export default async function aiRoutes(fastify) {
         extractedText = await extractPdfText(buffer);
         console.log(`[AI] PDF extracted ${extractedText.length} chars`);
       } else {
-        console.log('[AI] Running OCR on image...');
+        console.log('[AI] Running Ollama vision OCR on image...');
         sourceType    = 'image';
-        extractedText = await extractImageText(buffer, mime);
-        console.log(`[AI] OCR extracted ${extractedText.length} chars`);
+        extractedText = await extractImageTextViaOllama(buffer);
+        console.log(`[AI] Vision OCR extracted ${extractedText.length} chars`);
       }
 
       if (!extractedText.trim()) {
