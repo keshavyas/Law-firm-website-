@@ -8,13 +8,6 @@ export default function SummaryPage({ caseId, onBack }) {
   const [error, setError] = useState('');
   const [source, setSource] = useState('text');   // 'text' | 'pdf' | 'image'
 
-  // Auto-fetch case summary on mount
-  useEffect(() => {
-    if (caseId) fetchCaseSummary();
-  }, [caseId, fetchCaseSummary]);
-
-
-  
   const fetchCaseSummary = useCallback(async () => {
     try {
       setLoading(true);
@@ -31,6 +24,11 @@ export default function SummaryPage({ caseId, onBack }) {
       setLoading(false);
     }
   }, [caseId]);
+
+  // Auto-fetch case summary on mount
+  useEffect(() => {
+    if (caseId) fetchCaseSummary();
+  }, [caseId, fetchCaseSummary]);
 
 
 
@@ -94,8 +92,8 @@ export default function SummaryPage({ caseId, onBack }) {
           <div className="p-8">
             {/* Source badge */}
             <div className="flex items-center gap-2 mb-5 pb-4 border-b border-stone-100">
-              <span className="text-lg">{sourceIcon.text}</span>
-              <span className="text-xs text-stone-500 font-medium">Source: {sourceLabel.text}</span>
+              <span className="text-lg">{sourceIcon[source] || '📋'}</span>
+              <span className="text-xs text-stone-500 font-medium">Source: {sourceLabel[source] || 'Case Description'}</span>
             </div>
             <div>{renderSummary(summary)}</div>
           </div>
