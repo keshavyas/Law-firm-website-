@@ -144,7 +144,7 @@ async function summarizeCaseSections(caseData) {
 
   // Pick the most recently uploaded *supported* document.
   // Important: users may upload DOC/DOCX after a PDF, and we still want to summarize the PDF.
-  // Preference order: latest PDF → latest image → none.
+  // Preference order: latest PDF → latest TXT → latest image → none.
   if (Array.isArray(caseData.documents) && caseData.documents.length > 0) {
     const docs = caseData.documents;
 
@@ -153,6 +153,15 @@ async function summarizeCaseSections(caseData) {
         const name = docs[i];
         if (typeof name !== 'string') continue;
         if (extname(name).toLowerCase() === '.pdf') return i;
+      }
+      return -1;
+    })();
+
+    const supportedTxtIdx = (() => {
+      for (let i = docs.length - 1; i >= 0; i--) {
+        const name = docs[i];
+        if (typeof name !== 'string') continue;
+        if (extname(name).toLowerCase() === '.txt') return i;
       }
       return -1;
     })();
@@ -167,7 +176,10 @@ async function summarizeCaseSections(caseData) {
       return -1;
     })();
 
-    const pickedIdx = supportedPdfIdx >= 0 ? supportedPdfIdx : supportedImgIdx;
+    const pickedIdx =
+      supportedPdfIdx >= 0 ? supportedPdfIdx :
+      supportedTxtIdx >= 0 ? supportedTxtIdx :
+      supportedImgIdx;
     if (pickedIdx >= 0) {
       documentName = docs[pickedIdx];
       const docPath = join(UPLOAD_DIR, documentName);
@@ -178,6 +190,7 @@ async function summarizeCaseSections(caseData) {
 
         try {
           if (ext === '.pdf') documentText = await extractPdfText(buffer);
+          else if (ext === '.txt') documentText = buffer.toString('utf8');
           else if (['.jpg', '.png', '.jpeg', '.webp'].includes(ext)) {
             documentText = await extractImageTextViaOllama(buffer);
           }
@@ -195,7 +208,10 @@ async function summarizeCaseSections(caseData) {
   if (documentText.trim()) {
     documentSummary = await callOllama(documentText, 40000);
     const ext = documentName ? extname(documentName).toLowerCase() : '';
-    source = ext === '.pdf' ? 'pdf' : (ext ? 'file' : 'text');
+    source =
+      ext === '.pdf' ? 'pdf' :
+      ext === '.txt' ? 'txt' :
+      (ext ? 'file' : 'text');
   }
 
   return { descriptionSummary, documentSummary, source };
