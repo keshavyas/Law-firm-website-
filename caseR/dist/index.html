@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LegalCase – Legal Case Management</title>
+    <!-- Runtime shim: rewrite any accidental absolute requests to :3001 to relative paths
+         This protects clients that may be loading a stale bundle or have a service-worker/cache
+         while we track down the root cause. It's safe and minimal — removes the host:port
+         prefix when the host matches the current location. Placed in the head so it runs
+         before the app bundle (which Vite injects as a module script). -->
+    <script>
+      (function(){
+        // Rewrite absolute requests that point to current-host:3001 back to relative paths
+        function rewriteAbsoluteUrl(url){
+          try{
+            if (typeof url === 'string'){
+              const host = location.hostname;
+              const p1 = 'http://' + host + ':3001';
+              const p2 = 'https://' + host + ':3001';
+              if (url.indexOf(p1) === 0) return url.slice(p1.length) || '/';
+              if (url.indexOf(p2) === 0) return url.slice(p2.length) || '/';
+            }
+          }catch(e){}
+          return url;
+        }
+
+        // Patch fetch
+        const _fetch = window.fetch && window.fetch.bind(window);
+        if (_fetch){
+          window.fetch = function(input, init){
+            try{
+              let url = input;
+              if (input instanceof Request) url = input.url;
+              const newUrl = rewriteAbsoluteUrl(url);
+              input = input instanceof Request ? new Request(newUrl, input) : newUrl;
+            }catch(e){}
+            return _fetch(input, init);
+          };
+        }
+
+        // Patch XHR open
+        if (window.XMLHttpRequest && window.XMLHttpRequest.prototype){
+          const origOpen = window.XMLHttpRequest.prototype.open;
+          window.XMLHttpRequest.prototype.open = function(method, url, async, user, password){
+            try{ url = rewriteAbsoluteUrl(url); }catch(e){}
+            return origOpen.call(this, method, url, async, user, password);
+          };
+        }
+
+        // If old Service Worker(s) or caches exist, unregister/clear them once and reload
+        function clearCachesAndReload(){
+          try{
+            if (sessionStorage.getItem('democase_sw_unregistered')) return;
+            sessionStorage.setItem('democase_sw_unregistered','1');
+            if ('caches' in window){
+              caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))).catch(()=>{}).finally(()=>{ location.reload(); });
+            } else {
+              location.reload();
+            }
+          }catch(e){ try{ location.reload(); }catch(_){} }
+        }
+
+        if (navigator.serviceWorker){
+          try{
+            navigator.serviceWorker.getRegistrations().then(regs=>{
+              if (regs && regs.length>0){
+                Promise.all(regs.map(r=>r.unregister())).then(()=>clearCachesAndReload()).catch(()=>clearCachesAndReload());
+              } else if (navigator.serviceWorker.controller){
+                clearCachesAndReload();
+              }
+            }).catch(()=>{});
+          }catch(e){}
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DSHoo8Jv.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-FFD-4gEZ.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
