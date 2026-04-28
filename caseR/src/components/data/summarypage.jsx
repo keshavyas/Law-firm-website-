@@ -13,6 +13,8 @@ export default function SummaryPage({ caseId, onBack }) {
     if (caseId) fetchCaseSummary();
   }, [caseId]);
 
+
+  
   async function fetchCaseSummary() {
     try {
       setLoading(true);
