@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api.js';
 
 export default function SummaryPage({ caseId, onBack }) {
@@ -7,16 +7,15 @@ export default function SummaryPage({ caseId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [source, setSource] = useState('text');   // 'text' | 'pdf' | 'image'
-  const fileRef = useRef(null);
 
   // Auto-fetch case summary on mount
   useEffect(() => {
     if (caseId) fetchCaseSummary();
-  }, [caseId]);
+  }, [caseId, fetchCaseSummary]);
 
 
   
-  async function fetchCaseSummary() {
+  const fetchCaseSummary = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -31,7 +30,7 @@ export default function SummaryPage({ caseId, onBack }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [caseId]);
 
 
 
@@ -46,8 +45,8 @@ export default function SummaryPage({ caseId, onBack }) {
     });
   }
 
-  const sourceLabel = { text: 'Case Description', pdf: 'PDF Document', image: 'Image (OCR)', file: 'Uploaded File' };
-  const sourceIcon  = { text: '📋', pdf: '📄', image: '🖼️', file: '📎' };
+  const sourceLabel = { text: 'Case Description', pdf: 'PDF Document', txt: 'Text Document', image: 'Image (OCR)', file: 'Uploaded File' };
+  const sourceIcon  = { text: '📋', pdf: '📄', txt: '📝', image: '🖼️', file: '📎' };
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-5">
@@ -95,10 +94,8 @@ export default function SummaryPage({ caseId, onBack }) {
           <div className="p-8">
             {/* Source badge */}
             <div className="flex items-center gap-2 mb-5 pb-4 border-b border-stone-100">
-              <span className="text-lg">📋</span>
-              <span className="text-xs text-stone-500 font-medium">
-                Source: Case Description
-              </span>
+              <span className="text-lg">{sourceIcon.text}</span>
+              <span className="text-xs text-stone-500 font-medium">Source: {sourceLabel.text}</span>
             </div>
             <div>{renderSummary(summary)}</div>
           </div>
