@@ -142,21 +142,48 @@ async function summarizeCaseSections(caseData) {
   let documentText = '';
   let documentName = null;
 
-  if (caseData.documents && caseData.documents.length > 0) {
-    documentName = caseData.documents[caseData.documents.length - 1];
-    const docPath = join(UPLOAD_DIR, documentName);
+  // Pick the most recently uploaded *supported* document.
+  // Important: users may upload DOC/DOCX after a PDF, and we still want to summarize the PDF.
+  // Preference order: latest PDF → latest image → none.
+  if (Array.isArray(caseData.documents) && caseData.documents.length > 0) {
+    const docs = caseData.documents;
 
-    if (existsSync(docPath)) {
-      const buffer = await readFile(docPath);
-      const ext = extname(docPath).toLowerCase();
+    const supportedPdfIdx = (() => {
+      for (let i = docs.length - 1; i >= 0; i--) {
+        const name = docs[i];
+        if (typeof name !== 'string') continue;
+        if (extname(name).toLowerCase() === '.pdf') return i;
+      }
+      return -1;
+    })();
 
-      try {
-        if (ext === '.pdf') documentText = await extractPdfText(buffer);
-        else if (['.jpg', '.png', '.jpeg', '.webp'].includes(ext)) {
-          documentText = await extractImageTextViaOllama(buffer);
+    const supportedImgIdx = (() => {
+      for (let i = docs.length - 1; i >= 0; i--) {
+        const name = docs[i];
+        if (typeof name !== 'string') continue;
+        const ext = extname(name).toLowerCase();
+        if (['.jpg', '.png', '.jpeg', '.webp'].includes(ext)) return i;
+      }
+      return -1;
+    })();
+
+    const pickedIdx = supportedPdfIdx >= 0 ? supportedPdfIdx : supportedImgIdx;
+    if (pickedIdx >= 0) {
+      documentName = docs[pickedIdx];
+      const docPath = join(UPLOAD_DIR, documentName);
+
+      if (existsSync(docPath)) {
+        const buffer = await readFile(docPath);
+        const ext = extname(docPath).toLowerCase();
+
+        try {
+          if (ext === '.pdf') documentText = await extractPdfText(buffer);
+          else if (['.jpg', '.png', '.jpeg', '.webp'].includes(ext)) {
+            documentText = await extractImageTextViaOllama(buffer);
+          }
+        } catch (e) {
+          console.error('[AI] Document parsing failed:', e.message);
         }
-      } catch (e) {
-        console.error('[AI] Document parsing failed:', e.message);
       }
     }
   }
@@ -168,7 +195,7 @@ async function summarizeCaseSections(caseData) {
   if (documentText.trim()) {
     documentSummary = await callOllama(documentText, 40000);
     const ext = documentName ? extname(documentName).toLowerCase() : '';
-    source = ext === '.pdf' ? 'pdf' : 'file';
+    source = ext === '.pdf' ? 'pdf' : (ext ? 'file' : 'text');
   }
 
   return { descriptionSummary, documentSummary, source };
