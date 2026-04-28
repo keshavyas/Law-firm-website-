@@ -28,6 +28,7 @@ Case.init(
     documents:   { type: DataTypes.JSONB, defaultValue: [], allowNull: false },
     timeline:    { type: DataTypes.JSONB, defaultValue: [], allowNull: false },
     lawyerNote:  { type: DataTypes.TEXT, allowNull: true, defaultValue: null },
+    summary:     { type: DataTypes.TEXT, allowNull: true, defaultValue: null },
     filedDate:   { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
     nextHearing: { type: DataTypes.DATEONLY, allowNull: true, defaultValue: null },
     lastUpdated: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
