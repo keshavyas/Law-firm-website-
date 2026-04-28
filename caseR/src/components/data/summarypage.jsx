@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api.js';
 
 export default function SummaryPage({ caseId, onBack }) {
-  const [summary,    setSummary]    = useState('');
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState('');
-  const [source,     setSource]     = useState('text');   // 'text' | 'pdf' | 'image'
+  const [summary, setSummary] = useState('');
+  const [documentSummary, setDocumentSummary] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [source, setSource] = useState('text');   // 'text' | 'pdf' | 'image'
   const fileRef = useRef(null);
 
   // Auto-fetch case summary on mount
@@ -20,8 +21,10 @@ export default function SummaryPage({ caseId, onBack }) {
       setLoading(true);
       setError('');
       setSummary('');
+      setDocumentSummary('');
       const res = await api.summarize(caseId);
-      setSummary(res.data.summary);
+      setSummary(res.data.descriptionSummary || res.data.summary || '');
+      setDocumentSummary(res.data.documentSummary || '');
       setSource(res.data.source || 'text');
     } catch (err) {
       setError(err.message || 'Failed to generate summary');
@@ -65,7 +68,7 @@ export default function SummaryPage({ caseId, onBack }) {
 
 
 
-      {/* Summary card */}
+      {/* Description summary card */}
       <div className="bg-white border border-stone-200 rounded-2xl shadow-sm overflow-hidden">
 
         {loading ? (
@@ -92,15 +95,32 @@ export default function SummaryPage({ caseId, onBack }) {
           <div className="p-8">
             {/* Source badge */}
             <div className="flex items-center gap-2 mb-5 pb-4 border-b border-stone-100">
-              <span className="text-lg">{sourceIcon[source] || '📋'}</span>
+              <span className="text-lg">📋</span>
               <span className="text-xs text-stone-500 font-medium">
-                Source: {sourceLabel[source] || source}
+                Source: Case Description
               </span>
             </div>
             <div>{renderSummary(summary)}</div>
           </div>
         ) : null}
       </div>
+
+      {!loading && !error && documentSummary ? (
+        <div className="bg-white border border-stone-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-8">
+            <div className="flex items-center gap-2 mb-5 pb-4 border-b border-stone-100">
+              <span className="text-lg">{sourceIcon[source] || '📄'}</span>
+              <span className="text-xs text-stone-500 font-medium">
+                Source: {sourceLabel[source] || 'Uploaded File'}
+              </span>
+            </div>
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-stone-800">AI PDF Document Summary</h2>
+            </div>
+            <div>{renderSummary(documentSummary)}</div>
+          </div>
+        </div>
+      ) : null}
 
       <p className="text-center text-xs text-stone-400">
         AI-generated summaries may be inaccurate. Verify critical information against original documents.

@@ -130,6 +130,50 @@ Keep it concise and professional.`;
   }
 }
 
+async function summarizeCaseSections(caseData) {
+  const caseText =
+    `Title: ${caseData.title}\n` +
+    `Category: ${caseData.category}\n` +
+    `Status: ${caseData.status}\n` +
+    `Description: ${caseData.description}\n` +
+    (caseData.lawyerNote ? `Lawyer Notes: ${caseData.lawyerNote}\n` : '') +
+    (caseData.nextHearing ? `Next Hearing: ${caseData.nextHearing}\n` : '');
+
+  let documentText = '';
+  let documentName = null;
+
+  if (caseData.documents && caseData.documents.length > 0) {
+    documentName = caseData.documents[caseData.documents.length - 1];
+    const docPath = join(UPLOAD_DIR, documentName);
+
+    if (existsSync(docPath)) {
+      const buffer = await readFile(docPath);
+      const ext = extname(docPath).toLowerCase();
+
+      try {
+        if (ext === '.pdf') documentText = await extractPdfText(buffer);
+        else if (['.jpg', '.png', '.jpeg', '.webp'].includes(ext)) {
+          documentText = await extractImageTextViaOllama(buffer);
+        }
+      } catch (e) {
+        console.error('[AI] Document parsing failed:', e.message);
+      }
+    }
+  }
+
+  const descriptionSummary = await callOllama(caseText);
+  let documentSummary = '';
+  let source = 'text';
+
+  if (documentText.trim()) {
+    documentSummary = await callOllama(documentText, 40000);
+    const ext = documentName ? extname(documentName).toLowerCase() : '';
+    source = ext === '.pdf' ? 'pdf' : 'file';
+  }
+
+  return { descriptionSummary, documentSummary, source };
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 export default async function aiRoutes(fastify) {
 
@@ -142,51 +186,51 @@ export default async function aiRoutes(fastify) {
 
     try {
       let textToSummarize = text || '';
+      let descriptionSummary = '';
+      let documentSummary = '';
+      let source = 'text';
 
       if (case_id) {
         try {
           const caseData = await getCaseById(case_id, request.currentUser);
-          let docsText = '';
-          if (caseData.documents && caseData.documents.length > 0) {
-            const docName = caseData.documents[caseData.documents.length - 1]; // latest doc
-            const docPath = join(UPLOAD_DIR, docName);
-            if (existsSync(docPath)) {
-               const buffer = await readFile(docPath);
-               const ext = extname(docPath).toLowerCase();
-               try {
-                 if (ext === '.pdf') docsText = await extractPdfText(buffer);
-                 else if (['.jpg','.png','.jpeg','.webp'].includes(ext)) docsText = await extractImageTextViaOllama(buffer);
-               } catch (e) {
-                 console.error('[AI] Document parsing failed:', e.message);
-               }
-            }
-          }
-
-          textToSummarize =
-            `Title: ${caseData.title}\n` +
-            `Category: ${caseData.category}\n` +
-            `Status: ${caseData.status}\n` +
-            `Description: ${caseData.description}\n` +
-            (caseData.lawyerNote ? `Lawyer Notes: ${caseData.lawyerNote}\n` : '') +
-            (caseData.nextHearing ? `Next Hearing: ${caseData.nextHearing}\n` : '') +
-            (docsText ? `\n--- Attached Document ---\n${docsText}` : '');
+          const sectionSummaries = await summarizeCaseSections(caseData);
+          descriptionSummary = sectionSummaries.descriptionSummary;
+          documentSummary = sectionSummaries.documentSummary;
+          source = sectionSummaries.source;
         } catch (fetchErr) {
           console.error(`[AI] Case fetch failed: ${fetchErr.message}`);
         }
       }
 
-      if (!textToSummarize.trim()) {
+      if (case_id && !descriptionSummary.trim()) {
         throw new Error('No content to summarize');
       }
 
-      const summary = await callOllama(textToSummarize);
-      return sendSuccess(reply, { data: { summary, status: 'success', source: 'text' } });
+      if (!case_id && !textToSummarize.trim()) {
+        throw new Error('No content to summarize');
+      }
+
+      if (!case_id) {
+        descriptionSummary = await callOllama(textToSummarize);
+      }
+
+      return sendSuccess(reply, {
+        data: {
+          summary: descriptionSummary,
+          descriptionSummary,
+          documentSummary,
+          status: 'success',
+          source,
+        },
+      });
 
     } catch (err) {
       console.error(`[AI] /summarize failed: ${err.message}`);
       return sendSuccess(reply, {
         data: {
           summary: `AI summarization is temporarily unavailable. Error: ${err.message}`,
+          descriptionSummary: '',
+          documentSummary: '',
           status:  'error',
           source:  'text',
         },
