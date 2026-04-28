@@ -9,6 +9,7 @@ import { pipeline }   from 'stream/promises';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { Case }          from '../models/index.js';
+import { summarizeCasePdf } from '../services/caseSummary.service.js';
 
 const __dirname  = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, '..', '..', 'uploads');
@@ -220,6 +221,29 @@ export default async function casesRoutes(fastify) {
 
       return reply.send(stream);
 
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  // ── POST /api/cases/:id/summarize — generate & persist PDF summary ─────────
+  // Flow: get case → read latest PDF → extract → chunk (~3000 chars) → summarize chunks → final summary → store in DB
+  fastify.post('/:id/summarize', {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    try {
+      const result = await summarizeCasePdf({
+        caseId: request.params.id,
+        currentUser: request.currentUser,
+      });
+      return sendSuccess(reply, {
+        data: {
+          caseId: request.params.id,
+          document: result.document,
+          chunkCount: result.chunkCount,
+          summary: result.summary,
+        },
+      });
     } catch (err) {
       return sendError(reply, err);
     }
