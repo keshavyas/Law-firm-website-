@@ -19,17 +19,22 @@ const MERGE_BATCH_SIZE = 8;
 
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
-let pdfParse = null;
+let PDFParseCtor = null;
 
 async function getPdfParser() {
-  if (pdfParse) return pdfParse;
+  if (PDFParseCtor) return PDFParseCtor;
 
   if (typeof global.DOMMatrix === 'undefined') global.DOMMatrix = class DOMMatrix {};
   if (typeof global.Path2D === 'undefined') global.Path2D = class Path2D {};
 
   const mod = await import('pdf-parse');
-  pdfParse = mod.default || mod;
-  return pdfParse;
+  PDFParseCtor = mod.PDFParse;
+
+  if (!PDFParseCtor) {
+    throw new Error('PDF parser is unavailable');
+  }
+
+  return PDFParseCtor;
 }
 
 async function extractPdfText(buffer) {
@@ -41,8 +46,16 @@ async function extractPdfText(buffer) {
     throw new Error('PDF is too large to summarize safely');
   }
 
-  const parser = await getPdfParser();
-  const parsed = await parser(buffer);
+  const PDFParse = await getPdfParser();
+  const parser = new PDFParse({ data: buffer });
+  let parsed;
+
+  try {
+    parsed = await parser.getText();
+  } finally {
+    await parser.destroy();
+  }
+
   const text = normalizeText(parsed?.text || '');
 
   if (!text) {
