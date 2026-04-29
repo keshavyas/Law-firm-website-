@@ -11,13 +11,15 @@ import { sendSuccess } from '../utils/errors.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, '..', '..', 'uploads');
 
-const PDF_CHUNK_SIZE = 1200;
+const PDF_CHUNK_SIZE = Number.parseInt(process.env.AI_PDF_CHUNK_SIZE || '3000', 10);
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
-const MAX_CHUNKS = 80;
-const OLLAMA_TIMEOUT_MS = 60000;
-const MERGE_BATCH_SIZE = 8;
+const MAX_CHUNKS = Number.parseInt(process.env.AI_MAX_CHUNKS || '14', 10);
+const OLLAMA_TIMEOUT_MS = Number.parseInt(process.env.AI_SUMMARY_TIMEOUT_MS || '300000', 10);
+const OLLAMA_CALL_TIMEOUT_MS = Number.parseInt(process.env.OLLAMA_CALL_TIMEOUT_MS || '90000', 10);
+const OLLAMA_NUM_PREDICT = Number.parseInt(process.env.OLLAMA_NUM_PREDICT || '320', 10);
+const MERGE_BATCH_SIZE = 6;
 const AI_SUMMARY_TIMEOUT_MESSAGE =
-  'AI summary timed out after 60 seconds. Please try again with a shorter case description or a smaller PDF.';
+  `AI summary timed out after ${Math.round(OLLAMA_TIMEOUT_MS / 1000)} seconds. Please try again with a shorter case description or a smaller PDF.`;
 
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -130,7 +132,7 @@ function createSummaryDeadline(timeoutMs = OLLAMA_TIMEOUT_MS) {
 
 async function callOllamaGenerate(prompt, deadline = createSummaryDeadline()) {
   deadline.throwIfExpired();
-  const timeoutMs = deadline.remainingMs();
+  const timeoutMs = Math.min(deadline.remainingMs(), OLLAMA_CALL_TIMEOUT_MS);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -146,6 +148,11 @@ async function callOllamaGenerate(prompt, deadline = createSummaryDeadline()) {
         model: process.env.AI_MODEL || 'phi',
         prompt,
         stream: false,
+        options: {
+          num_predict: OLLAMA_NUM_PREDICT,
+          temperature: 0.2,
+          top_p: 0.9,
+        },
       }),
     });
 
@@ -174,11 +181,21 @@ async function callOllamaGenerate(prompt, deadline = createSummaryDeadline()) {
 }
 
 function buildChunkPrompt(chunk) {
-  return `Summarize into key facts and conclusion. Use only given text.\n\n${chunk}`;
+  return `You are summarizing a legal case document.
+Use only the text below. Be concise.
+Return:
+- Key facts
+- Legal issues
+- Important dates/names
+- Conclusion
+
+Text:
+${chunk}`;
 }
 
 function buildMergePrompt(summaryText) {
-  return `Merge these partial summaries into one final summary. Use only given text.
+  return `Merge these partial legal summaries into one final case summary.
+Use only the provided summaries. Keep it concise.
 
 Output format exactly:
 Overview:
@@ -197,7 +214,7 @@ async function summarizeTextChunks(text, deadline = createSummaryDeadline()) {
   }
 
   if (chunks.length > MAX_CHUNKS) {
-    throw new Error('PDF text is too large to summarize safely');
+    throw new Error(`PDF text is too large to summarize in one request (${chunks.length} chunks). Please upload a smaller PDF or increase AI_MAX_CHUNKS/AI_SUMMARY_TIMEOUT_MS on the server.`);
   }
 
   const summaries = [];
@@ -256,9 +273,21 @@ function buildCaseText(caseData) {
   ].filter(Boolean).join('\n'));
 }
 
-async function summarizeCase(caseId, currentUser, deadline = createSummaryDeadline()) {
+async function summarizeCase(caseId, currentUser, deadline = createSummaryDeadline(), options = {}) {
   const caseData = await getCaseById(caseId, currentUser);
+
+  if (caseData.summary && !options.force) {
+    return {
+      chunkCount: 0,
+      summary: caseData.summary,
+      source: pickLatestPdfFilename(caseData.documents || []) ? 'pdf' : 'text',
+      document: pickLatestPdfFilename(caseData.documents || []),
+      cached: true,
+    };
+  }
+
   const pdfName = pickLatestPdfFilename(caseData.documents || []);
+  let result;
 
   if (pdfName) {
     const pdfPath = join(UPLOAD_DIR, pdfName);
@@ -267,13 +296,17 @@ async function summarizeCase(caseId, currentUser, deadline = createSummaryDeadli
       throw new Error('PDF file not found on server');
     }
 
-    const result = await summarizePdfBuffer(await readFile(pdfPath), deadline);
-    return { ...result, source: 'pdf', document: pdfName };
+    result = await summarizePdfBuffer(await readFile(pdfPath), deadline);
+    result = { ...result, source: 'pdf', document: pdfName };
+  } else {
+    const text = buildCaseText(caseData);
+    result = { ...(await summarizeTextChunks(text, deadline)), source: 'text', document: null };
   }
 
-  const text = buildCaseText(caseData);
-  const result = await summarizeTextChunks(text, deadline);
-  return { ...result, source: 'text', document: null };
+  caseData.summary = result.summary;
+  await caseData.save();
+
+  return result;
 }
 
 export default async function aiRoutes(fastify) {
@@ -304,7 +337,7 @@ export default async function aiRoutes(fastify) {
         const { case_id, text } = request.body || {};
 
         if (case_id) {
-          result = await summarizeCase(case_id, request.currentUser, deadline);
+          result = await summarizeCase(case_id, request.currentUser, deadline, { force: request.body?.force === true });
         } else if (text && text.trim()) {
           result = { ...(await summarizeTextChunks(text, deadline)), source: 'text', document: null };
         } else {
@@ -321,6 +354,7 @@ export default async function aiRoutes(fastify) {
           source: result.source,
           document: result.document,
           chunkCount: result.chunkCount,
+          cached: Boolean(result.cached),
         },
       });
     } catch (err) {

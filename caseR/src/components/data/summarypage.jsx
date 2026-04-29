@@ -78,7 +78,7 @@ export default function SummaryPage({ caseId, onBack }) {
             <p className="text-sm text-stone-500 font-medium">
               Generating AI summary…
             </p>
-            <p className="text-xs text-stone-400">This may take up to 60 seconds</p>
+            <p className="text-xs text-stone-400">Large PDFs may take a few minutes the first time</p>
           </div>
         ) : error ? (
           <div className="p-8 text-center">

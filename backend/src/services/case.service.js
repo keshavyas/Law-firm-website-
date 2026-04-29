@@ -131,6 +131,13 @@ export async function updateCase(caseId, updates, currentUser) {
   // Apply partial updates
   if (updates.status      !== undefined) found.status      = updates.status;
   if (updates.lawyerNote  !== undefined) found.lawyerNote  = updates.lawyerNote;
+  if (
+    updates.status !== undefined ||
+    updates.lawyerNote !== undefined ||
+    updates.nextHearing !== undefined
+  ) {
+    found.summary = null;
+  }
   
   // Handle hearing date update with normalization
   if (updates.nextHearing !== undefined) {
