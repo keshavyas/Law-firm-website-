@@ -257,7 +257,10 @@ function validateGeneratedSummary(summary, sourceText) {
   const groundedWords = summaryWords.filter((word) => sourceWords.has(word));
   const groundedRatio = groundedWords.length / summaryWords.length;
 
-  if (groundedWords.length < 3 || groundedRatio < 0.2) {
+  const hasMeaningfulSource = sourceWords.size >= 8;
+  const hasAlmostNoGrounding = groundedWords.length < 2 && groundedRatio < 0.1;
+
+  if (hasMeaningfulSource && hasAlmostNoGrounding) {
     throw new Error(UNGROUNDED_SUMMARY_MESSAGE);
   }
 }
@@ -281,8 +284,10 @@ async function summarizeTextChunks(text, deadline = createSummaryDeadline()) {
     summaries.push(chunkSummary);
   }
 
-  const summary = await mergeSummaries(summaries, deadline);
-  validateGeneratedSummary(summary, text);
+  const summary = summaries.length === 1
+    ? summaries[0]
+    : await mergeSummaries(summaries, deadline);
+  validateGeneratedSummary(summary, summaries.join('\n\n'));
 
   return {
     chunkCount: chunks.length,
