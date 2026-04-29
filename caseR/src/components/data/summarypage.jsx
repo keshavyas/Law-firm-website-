@@ -16,6 +16,9 @@ export default function SummaryPage({ caseId, onBack }) {
       setSummary('');
       setDocumentSummary('');
       const res = await api.summarize(caseId);
+      if (res.data?.status === 'error') {
+        throw new Error(res.data.summary || 'Failed to generate summary');
+      }
       setSummary(res.data.descriptionSummary || res.data.summary || '');
       setDocumentSummary(res.data.documentSummary || '');
       setSource(res.data.source || 'text');
@@ -75,7 +78,7 @@ export default function SummaryPage({ caseId, onBack }) {
             <p className="text-sm text-stone-500 font-medium">
               Generating AI summary…
             </p>
-            <p className="text-xs text-stone-400">This may take 15–30 seconds</p>
+            <p className="text-xs text-stone-400">This may take up to 60 seconds</p>
           </div>
         ) : error ? (
           <div className="p-8 text-center">

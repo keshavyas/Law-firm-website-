@@ -16,6 +16,8 @@ const MAX_PDF_BYTES = 15 * 1024 * 1024;
 const MAX_CHUNKS = 80;
 const OLLAMA_TIMEOUT_MS = 60000;
 const MERGE_BATCH_SIZE = 8;
+const AI_SUMMARY_TIMEOUT_MESSAGE =
+  'AI summary timed out after 60 seconds. Please try again with a shorter case description or a smaller PDF.';
 
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -105,7 +107,30 @@ function getOllamaGenerateUrl() {
   return url;
 }
 
-async function callOllamaGenerate(prompt, timeoutMs = OLLAMA_TIMEOUT_MS) {
+function createTimeoutError() {
+  const error = new Error(AI_SUMMARY_TIMEOUT_MESSAGE);
+  error.code = 'AI_SUMMARY_TIMEOUT';
+  return error;
+}
+
+function createSummaryDeadline(timeoutMs = OLLAMA_TIMEOUT_MS) {
+  const expiresAt = Date.now() + timeoutMs;
+
+  return {
+    remainingMs() {
+      return Math.max(0, expiresAt - Date.now());
+    },
+    throwIfExpired() {
+      if (this.remainingMs() <= 0) {
+        throw createTimeoutError();
+      }
+    },
+  };
+}
+
+async function callOllamaGenerate(prompt, deadline = createSummaryDeadline()) {
+  deadline.throwIfExpired();
+  const timeoutMs = deadline.remainingMs();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -137,6 +162,12 @@ async function callOllamaGenerate(prompt, timeoutMs = OLLAMA_TIMEOUT_MS) {
     }
 
     return output;
+  } catch (err) {
+    if (err?.name === 'AbortError' || err?.code === 'ABORT_ERR') {
+      throw createTimeoutError();
+    }
+
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
@@ -158,7 +189,7 @@ Conclusion:
 ${summaryText}`;
 }
 
-async function summarizeTextChunks(text) {
+async function summarizeTextChunks(text, deadline = createSummaryDeadline()) {
   const chunks = splitIntoChunks(text);
 
   if (chunks.length === 0) {
@@ -172,16 +203,16 @@ async function summarizeTextChunks(text) {
   const summaries = [];
 
   for (const chunk of chunks) {
-    summaries.push(await callOllamaGenerate(buildChunkPrompt(chunk)));
+    summaries.push(await callOllamaGenerate(buildChunkPrompt(chunk), deadline));
   }
 
   return {
     chunkCount: chunks.length,
-    summary: await mergeSummaries(summaries),
+    summary: await mergeSummaries(summaries, deadline),
   };
 }
 
-async function mergeSummaries(summaries) {
+async function mergeSummaries(summaries, deadline) {
   let pending = summaries.filter(Boolean);
 
   while (pending.length > MERGE_BATCH_SIZE) {
@@ -189,18 +220,18 @@ async function mergeSummaries(summaries) {
 
     for (let i = 0; i < pending.length; i += MERGE_BATCH_SIZE) {
       const batch = pending.slice(i, i + MERGE_BATCH_SIZE).join('\n\n');
-      next.push(await callOllamaGenerate(buildMergePrompt(batch)));
+      next.push(await callOllamaGenerate(buildMergePrompt(batch), deadline));
     }
 
     pending = next;
   }
 
-  return await callOllamaGenerate(buildMergePrompt(pending.join('\n\n')));
+  return await callOllamaGenerate(buildMergePrompt(pending.join('\n\n')), deadline);
 }
 
-async function summarizePdfBuffer(buffer) {
+async function summarizePdfBuffer(buffer, deadline = createSummaryDeadline()) {
   const text = await extractPdfText(buffer);
-  return await summarizeTextChunks(text);
+  return await summarizeTextChunks(text, deadline);
 }
 
 function pickLatestPdfFilename(documents = []) {
@@ -225,7 +256,7 @@ function buildCaseText(caseData) {
   ].filter(Boolean).join('\n'));
 }
 
-async function summarizeCase(caseId, currentUser) {
+async function summarizeCase(caseId, currentUser, deadline = createSummaryDeadline()) {
   const caseData = await getCaseById(caseId, currentUser);
   const pdfName = pickLatestPdfFilename(caseData.documents || []);
 
@@ -236,12 +267,12 @@ async function summarizeCase(caseId, currentUser) {
       throw new Error('PDF file not found on server');
     }
 
-    const result = await summarizePdfBuffer(await readFile(pdfPath));
+    const result = await summarizePdfBuffer(await readFile(pdfPath), deadline);
     return { ...result, source: 'pdf', document: pdfName };
   }
 
   const text = buildCaseText(caseData);
-  const result = await summarizeTextChunks(text);
+  const result = await summarizeTextChunks(text, deadline);
   return { ...result, source: 'text', document: null };
 }
 
@@ -249,6 +280,8 @@ export default async function aiRoutes(fastify) {
   fastify.post('/summarize', {
     preHandler: [authenticate],
   }, async (request, reply) => {
+    const deadline = createSummaryDeadline();
+
     try {
       let result;
 
@@ -264,16 +297,16 @@ export default async function aiRoutes(fastify) {
           throw new Error('Only PDF files are supported');
         }
 
-        result = await summarizePdfBuffer(await file.toBuffer());
+        result = await summarizePdfBuffer(await file.toBuffer(), deadline);
         result.source = 'pdf';
         result.document = file.filename;
       } else {
         const { case_id, text } = request.body || {};
 
         if (case_id) {
-          result = await summarizeCase(case_id, request.currentUser);
+          result = await summarizeCase(case_id, request.currentUser, deadline);
         } else if (text && text.trim()) {
-          result = { ...(await summarizeTextChunks(text)), source: 'text', document: null };
+          result = { ...(await summarizeTextChunks(text, deadline)), source: 'text', document: null };
         } else {
           throw new Error('No content to summarize');
         }
@@ -306,6 +339,7 @@ export default async function aiRoutes(fastify) {
   fastify.post('/summarize-file', {
     preHandler: [authenticate],
   }, async (request, reply) => {
+    const deadline = createSummaryDeadline();
     let tmpPath = null;
 
     try {
@@ -324,7 +358,7 @@ export default async function aiRoutes(fastify) {
       tmpPath = join(UPLOAD_DIR, safeName);
       await pipeline(file.file, createWriteStream(tmpPath));
 
-      const result = await summarizePdfBuffer(await readFile(tmpPath));
+      const result = await summarizePdfBuffer(await readFile(tmpPath), deadline);
 
       return sendSuccess(reply, {
         data: {
