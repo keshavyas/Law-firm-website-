@@ -79,7 +79,7 @@ export default function SummaryPage({ caseId, onBack }) {
             <p className="text-sm text-stone-500 font-medium">
               Generating AI summary…
             </p>
-            <p className="text-xs text-stone-400">Large PDFs may take a few minutes the first time</p>
+            <p className="text-xs text-stone-400">Large PDFs may take a few minutes for first time</p>
           </div>
         ) : error ? (
           <div className="p-8 text-center">
@@ -122,8 +122,8 @@ export default function SummaryPage({ caseId, onBack }) {
         </div>
       ) : null}
 
-      <p className="text-center text-xs text-stone-400">
-        AI-generated summaries may be inaccurate. Verify critical information against original documents.
+      <p className="text-center text-xs text-black-400">
+        **AI-generated summaries may be inaccurate. Verify critical information against original documents.**
       </p>
     </div>
   );
