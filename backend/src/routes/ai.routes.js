@@ -16,9 +16,11 @@ const MAX_PDF_BYTES = 15 * 1024 * 1024;
 const MAX_CHUNKS = Number.parseInt(process.env.AI_MAX_CHUNKS || '14', 10);
 const OLLAMA_TIMEOUT_MS = Number.parseInt(process.env.AI_SUMMARY_TIMEOUT_MS || '300000', 10);
 const OLLAMA_CALL_TIMEOUT_MS = Number.parseInt(process.env.OLLAMA_CALL_TIMEOUT_MS || '90000', 10);
-const OLLAMA_NUM_PREDICT = Number.parseInt(process.env.OLLAMA_NUM_PREDICT || '320', 10);
+const OLLAMA_NUM_PREDICT = Number.parseInt(process.env.OLLAMA_NUM_PREDICT || '420', 10);
 const MERGE_BATCH_SIZE = 6;
 const MIN_EXTRACTED_TEXT_CHARS = Number.parseInt(process.env.AI_MIN_EXTRACTED_TEXT_CHARS || '40', 10);
+const MIN_FINAL_SUMMARY_WORDS = Number.parseInt(process.env.AI_MIN_SUMMARY_WORDS || '150', 10);
+const MAX_FINAL_SUMMARY_WORDS = Number.parseInt(process.env.AI_MAX_SUMMARY_WORDS || '200', 10);
 const AI_SUMMARY_TIMEOUT_MESSAGE =
   `AI summary timed out after ${Math.round(OLLAMA_TIMEOUT_MS / 1000)} seconds. Please try again with a shorter case description or a smaller PDF.`;
 const UNGROUNDED_SUMMARY_MESSAGE =
@@ -204,7 +206,7 @@ Use only the text between <document_text> tags. Do not use prior knowledge, exam
 If the text is not enough to summarize, return exactly: UNABLE_TO_SUMMARIZE_PDF
 Do not mention people, property, dates, chats, users, or disputes unless they appear in the text.
 
-Return:
+Return a concise partial summary with:
 - Key facts
 - Legal issues
 - Important dates/names
@@ -219,6 +221,7 @@ function buildMergePrompt(summaryText) {
   return `Merge these partial document summaries into one final case summary.
 Use only the text between <partial_summaries> tags. Do not add facts, names, dates, disputes, or legal claims that are not present.
 If the partial summaries are not enough to summarize, return exactly: UNABLE_TO_SUMMARIZE_PDF
+The final answer must be ${MIN_FINAL_SUMMARY_WORDS} to ${MAX_FINAL_SUMMARY_WORDS} words.
 
 Output format exactly:
 Overview:
@@ -231,9 +234,48 @@ ${summaryText}
 </partial_summaries>`;
 }
 
+function buildFinalSummaryPrompt(sourceText) {
+  return `Create the final case summary of this uploaded document for a lawyer.
+Use only the text between <document_text> tags. Do not use prior knowledge, examples, or assumptions.
+If the text is not enough to summarize, return exactly: UNABLE_TO_SUMMARIZE_PDF
+Do not mention people, property, dates, chats, users, or disputes unless they appear in the text.
+The final answer must be ${MIN_FINAL_SUMMARY_WORDS} to ${MAX_FINAL_SUMMARY_WORDS} words.
+
+Output format exactly:
+Overview:
+Key Facts:
+Legal Points:
+Conclusion:
+
+<document_text>
+${sourceText}
+</document_text>`;
+}
+
+function buildLengthRevisionPrompt(summary, sourceText) {
+  return `Revise the summary so it is ${MIN_FINAL_SUMMARY_WORDS} to ${MAX_FINAL_SUMMARY_WORDS} words.
+Use only facts supported by the source text. Keep the same output headings exactly:
+Overview:
+Key Facts:
+Legal Points:
+Conclusion:
+
+<current_summary>
+${summary}
+</current_summary>
+
+<source_text>
+${sourceText}
+</source_text>`;
+}
+
 function getSignificantWords(text) {
   const matches = normalizeText(text).toLowerCase().match(/[a-z0-9][a-z0-9'/-]{3,}/g) || [];
   return [...new Set(matches.filter((word) => !SUMMARY_STOPWORDS.has(word)))];
+}
+
+function countWords(text) {
+  return normalizeText(text).match(/\b[\w'/-]+\b/g)?.length || 0;
 }
 
 function validateGeneratedSummary(summary, sourceText) {
@@ -276,23 +318,43 @@ async function summarizeTextChunks(text, deadline = createSummaryDeadline()) {
     throw new Error(`PDF text is too large to summarize in one request (${chunks.length} chunks). Please upload a smaller PDF or increase AI_MAX_CHUNKS/AI_SUMMARY_TIMEOUT_MS on the server.`);
   }
 
-  const summaries = [];
+  let summary;
 
-  for (const chunk of chunks) {
-    const chunkSummary = await callOllamaGenerate(buildChunkPrompt(chunk), deadline);
-    validateGeneratedSummary(chunkSummary, chunk);
-    summaries.push(chunkSummary);
+  if (chunks.length === 1) {
+    summary = await callOllamaGenerate(buildFinalSummaryPrompt(chunks[0]), deadline);
+    validateGeneratedSummary(summary, chunks[0]);
+  } else {
+    const summaries = [];
+
+    for (const chunk of chunks) {
+      const chunkSummary = await callOllamaGenerate(buildChunkPrompt(chunk), deadline);
+      validateGeneratedSummary(chunkSummary, chunk);
+      summaries.push(chunkSummary);
+    }
+
+    summary = await mergeSummaries(summaries, deadline);
+    validateGeneratedSummary(summary, summaries.join('\n\n'));
   }
 
-  const summary = summaries.length === 1
-    ? summaries[0]
-    : await mergeSummaries(summaries, deadline);
-  validateGeneratedSummary(summary, summaries.join('\n\n'));
+  summary = await reviseSummaryLengthIfNeeded(summary, text, deadline);
+  validateGeneratedSummary(summary, text);
 
   return {
     chunkCount: chunks.length,
     summary,
   };
+}
+
+async function reviseSummaryLengthIfNeeded(summary, sourceText, deadline) {
+  const words = countWords(summary);
+  if (words >= MIN_FINAL_SUMMARY_WORDS && words <= MAX_FINAL_SUMMARY_WORDS) {
+    return summary;
+  }
+
+  const revised = await callOllamaGenerate(buildLengthRevisionPrompt(summary, sourceText), deadline);
+  validateGeneratedSummary(revised, sourceText);
+
+  return revised;
 }
 
 async function mergeSummaries(summaries, deadline) {

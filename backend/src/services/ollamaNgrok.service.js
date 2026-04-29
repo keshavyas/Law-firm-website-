@@ -25,7 +25,7 @@ function toOllamaError(err) {
 }
 
 const DEFAULT_OLLAMA_TIMEOUT_MS = Number.parseInt(process.env.OLLAMA_CALL_TIMEOUT_MS || '90000', 10);
-const DEFAULT_NUM_PREDICT = Number.parseInt(process.env.OLLAMA_NUM_PREDICT || '320', 10);
+const DEFAULT_NUM_PREDICT = Number.parseInt(process.env.OLLAMA_NUM_PREDICT || '420', 10);
 
 export async function generateSummaryViaNgrok({ model = process.env.AI_MODEL || 'phi', prompt, timeoutMs = DEFAULT_OLLAMA_TIMEOUT_MS }) {
   const url = resolveNgrokGenerateUrl();

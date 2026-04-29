@@ -14,6 +14,8 @@ const PDF_CHUNK_SIZE = Number.parseInt(process.env.AI_PDF_CHUNK_SIZE || '3000', 
 const MAX_CHUNKS = Number.parseInt(process.env.AI_MAX_CHUNKS || '14', 10);
 const OLLAMA_CALL_TIMEOUT_MS = Number.parseInt(process.env.OLLAMA_CALL_TIMEOUT_MS || '90000', 10);
 const MERGE_BATCH_SIZE = 6;
+const MIN_FINAL_SUMMARY_WORDS = Number.parseInt(process.env.AI_MIN_SUMMARY_WORDS || '150', 10);
+const MAX_FINAL_SUMMARY_WORDS = Number.parseInt(process.env.AI_MAX_SUMMARY_WORDS || '200', 10);
 
 function pickLatestPdfFilename(documents = []) {
   for (let i = documents.length - 1; i >= 0; i--) {
@@ -25,11 +27,21 @@ function pickLatestPdfFilename(documents = []) {
 }
 
 function buildChunkPrompt(text) {
-  return `Summarize into key facts and conclusion. Use only given text.\n\n${text}`;
+  return `Summarize this document section for a lawyer.
+Use only the given text. Do not add facts, names, dates, disputes, or legal claims that are not present.
+
+Return:
+- Key facts
+- Legal issues
+- Important dates/names
+- Conclusion
+
+${text}`;
 }
 
 function buildMergePrompt(text) {
   return `Merge these partial summaries into one final summary. Use only given text.
+The final answer must be ${MIN_FINAL_SUMMARY_WORDS} to ${MAX_FINAL_SUMMARY_WORDS} words.
 
 Output format exactly:
 Overview:
@@ -38,6 +50,39 @@ Legal Points:
 Conclusion:
 
 ${text}`;
+}
+
+function buildFinalSummaryPrompt(text) {
+  return `Create the final case summary of this uploaded document for a lawyer.
+Use only the given text. Do not add facts, names, dates, disputes, or legal claims that are not present.
+The final answer must be ${MIN_FINAL_SUMMARY_WORDS} to ${MAX_FINAL_SUMMARY_WORDS} words.
+
+Output format exactly:
+Overview:
+Key Facts:
+Legal Points:
+Conclusion:
+
+${text}`;
+}
+
+function buildLengthRevisionPrompt(summary, sourceText) {
+  return `Revise the summary so it is ${MIN_FINAL_SUMMARY_WORDS} to ${MAX_FINAL_SUMMARY_WORDS} words.
+Use only facts supported by the source text. Keep the same output headings exactly:
+Overview:
+Key Facts:
+Legal Points:
+Conclusion:
+
+Current summary:
+${summary}
+
+Source text:
+${sourceText}`;
+}
+
+function countWords(text) {
+  return String(text || '').trim().match(/\b[\w'/-]+\b/g)?.length || 0;
 }
 
 async function mergeSummaries(summaries) {
@@ -59,6 +104,18 @@ async function mergeSummaries(summaries) {
 
   return await generateSummaryViaNgrok({
     prompt: buildMergePrompt(pending.join('\n\n')),
+    timeoutMs: OLLAMA_CALL_TIMEOUT_MS,
+  });
+}
+
+async function reviseSummaryLengthIfNeeded(summary, sourceText) {
+  const words = countWords(summary);
+  if (words >= MIN_FINAL_SUMMARY_WORDS && words <= MAX_FINAL_SUMMARY_WORDS) {
+    return summary;
+  }
+
+  return await generateSummaryViaNgrok({
+    prompt: buildLengthRevisionPrompt(summary, sourceText),
     timeoutMs: OLLAMA_CALL_TIMEOUT_MS,
   });
 }
@@ -90,16 +147,27 @@ export async function summarizeCasePdf({ caseId, currentUser }) {
     throw badRequest('PDF text is too large to summarize safely');
   }
 
-  const chunkSummaries = [];
-  for (let idx = 0; idx < chunks.length; idx++) {
-    const summary = await generateSummaryViaNgrok({
-      prompt: buildChunkPrompt(chunks[idx]),
+  let finalSummary;
+
+  if (chunks.length === 1) {
+    finalSummary = await generateSummaryViaNgrok({
+      prompt: buildFinalSummaryPrompt(chunks[0]),
       timeoutMs: OLLAMA_CALL_TIMEOUT_MS,
     });
-    chunkSummaries.push(`Chunk ${idx + 1} Summary:\n${summary}`.trim());
+  } else {
+    const chunkSummaries = [];
+    for (let idx = 0; idx < chunks.length; idx++) {
+      const summary = await generateSummaryViaNgrok({
+        prompt: buildChunkPrompt(chunks[idx]),
+        timeoutMs: OLLAMA_CALL_TIMEOUT_MS,
+      });
+      chunkSummaries.push(`Chunk ${idx + 1} Summary:\n${summary}`.trim());
+    }
+
+    finalSummary = await mergeSummaries(chunkSummaries);
   }
 
-  const finalSummary = await mergeSummaries(chunkSummaries);
+  finalSummary = await reviseSummaryLengthIfNeeded(finalSummary, text);
 
   found.summary = finalSummary;
   await found.save();
