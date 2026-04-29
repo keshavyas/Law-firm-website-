@@ -46,6 +46,9 @@ services:
       MAIL_USER:      ${MAIL_USER}
       MAIL_PASS:      ${MAIL_PASS}
       MAIL_FROM:      ${MAIL_FROM}
+      OLLAMA_URL:     ${OLLAMA_URL}
+      NGROK_URL:      ${NGROK_URL}
+      AI_MODEL:       ${AI_MODEL:-phi}
     volumes:
       - uploads_data:/app/uploads
       - ./backend/src:/app/src:ro
@@ -87,4 +90,4 @@ volumes:
 
 networks:
   democase:
-    driver: bridge
+    driver: bridge
