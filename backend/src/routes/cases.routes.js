@@ -227,7 +227,7 @@ export default async function casesRoutes(fastify) {
   });
 
   // ── POST /api/cases/:id/summarize — generate & persist PDF summary ─────────
-  // Flow: get case → read latest PDF → extract → chunk (~3000 chars) → summarize chunks → final summary → store in DB
+  // Flow: get case → read latest PDF → extract → chunk (~1200 chars) → summarize chunks → final summary → store in DB
   fastify.post('/:id/summarize', {
     preHandler: [authenticate],
   }, async (request, reply) => {
