@@ -6,6 +6,7 @@ export default function SummaryPage({ caseId, onBack }) {
   const [documentSummary, setDocumentSummary] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+ 
   const [source, setSource] = useState('text');   // 'text' | 'pdf' | 'image'
 
   const fetchCaseSummary = useCallback(async () => {
