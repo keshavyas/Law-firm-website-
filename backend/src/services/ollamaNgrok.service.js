@@ -2,8 +2,7 @@ import axios from 'axios';
 import { AppError } from '../utils/errors.js';
 
 function resolveNgrokGenerateUrl() {
-  let base = (process.env.NGROK_URL || '').trim();
-  if (!base) return null;
+  let base = (process.env.OLLAMA_URL || process.env.NGROK_URL || 'http://localhost:11434').trim();
   if (base.endsWith('/')) base = base.slice(0, -1);
   if (!base.endsWith('/api/generate')) base += '/api/generate';
   return base;
@@ -27,9 +26,6 @@ function toOllamaError(err) {
 
 export async function generateSummaryViaNgrok({ model = 'phi', prompt, timeoutMs = 45000 }) {
   const url = resolveNgrokGenerateUrl();
-  if (!url) {
-    throw new AppError('NGROK_URL is not configured', 500, 'CONFIG_ERROR');
-  }
   if (!prompt || !prompt.trim()) {
     throw new AppError('Prompt is required', 500, 'INTERNAL_ERROR');
   }
