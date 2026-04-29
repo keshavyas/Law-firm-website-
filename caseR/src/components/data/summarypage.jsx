@@ -19,8 +19,9 @@ export default function SummaryPage({ caseId, onBack }) {
       if (res.data?.status === 'error') {
         throw new Error(res.data.summary || 'Failed to generate summary');
       }
-      setSummary(res.data.descriptionSummary || res.data.summary || '');
-      setDocumentSummary(res.data.documentSummary || '');
+      const primarySummary = res.data.documentSummary || res.data.descriptionSummary || res.data.summary || '';
+      setSummary(primarySummary);
+      setDocumentSummary('');
       setSource(res.data.source || 'text');
     } catch (err) {
       setError(err.message || 'Failed to generate summary');
