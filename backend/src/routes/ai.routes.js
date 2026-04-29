@@ -18,8 +18,26 @@ const OLLAMA_TIMEOUT_MS = Number.parseInt(process.env.AI_SUMMARY_TIMEOUT_MS || '
 const OLLAMA_CALL_TIMEOUT_MS = Number.parseInt(process.env.OLLAMA_CALL_TIMEOUT_MS || '90000', 10);
 const OLLAMA_NUM_PREDICT = Number.parseInt(process.env.OLLAMA_NUM_PREDICT || '320', 10);
 const MERGE_BATCH_SIZE = 6;
+const MIN_EXTRACTED_TEXT_CHARS = Number.parseInt(process.env.AI_MIN_EXTRACTED_TEXT_CHARS || '40', 10);
 const AI_SUMMARY_TIMEOUT_MESSAGE =
   `AI summary timed out after ${Math.round(OLLAMA_TIMEOUT_MS / 1000)} seconds. Please try again with a shorter case description or a smaller PDF.`;
+const UNGROUNDED_SUMMARY_MESSAGE =
+  'AI returned a summary that does not match the extracted PDF text. Please try again or upload a clearer text-based PDF.';
+const HALLUCINATION_PATTERNS = [
+  /curious user/i,
+  /artificial intelligence assistant/i,
+  /chat between/i,
+  /john and jane/i,
+  /property rights to a piece of land/i,
+  /original purchase agreement was signed by both parties/i,
+];
+const SUMMARY_STOPWORDS = new Set([
+  'about', 'above', 'after', 'against', 'also', 'and', 'another', 'are', 'because', 'been',
+  'between', 'both', 'case', 'conclusion', 'document', 'facts', 'from', 'further', 'have',
+  'important', 'include', 'includes', 'into', 'issues', 'legal', 'may', 'mentioned', 'necessary',
+  'overview', 'points', 'summary', 'text', 'that', 'their', 'there', 'these', 'this', 'with',
+  'within', 'without',
+]);
 
 if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -62,7 +80,7 @@ async function extractPdfText(buffer) {
 
   const text = normalizeText(parsed?.text || '');
 
-  if (!text) {
+  if (!text || text.length < MIN_EXTRACTED_TEXT_CHARS) {
     throw new Error('Could not extract readable text from this PDF');
   }
 
@@ -181,21 +199,26 @@ async function callOllamaGenerate(prompt, deadline = createSummaryDeadline()) {
 }
 
 function buildChunkPrompt(chunk) {
-  return `You are summarizing a legal case document.
-Use only the text below. Be concise.
+  return `You are summarizing an uploaded document for a lawyer.
+Use only the text between <document_text> tags. Do not use prior knowledge, examples, or assumptions.
+If the text is not enough to summarize, return exactly: UNABLE_TO_SUMMARIZE_PDF
+Do not mention people, property, dates, chats, users, or disputes unless they appear in the text.
+
 Return:
 - Key facts
 - Legal issues
 - Important dates/names
 - Conclusion
 
-Text:
-${chunk}`;
+<document_text>
+${chunk}
+</document_text>`;
 }
 
 function buildMergePrompt(summaryText) {
-  return `Merge these partial legal summaries into one final case summary.
-Use only the provided summaries. Keep it concise.
+  return `Merge these partial document summaries into one final case summary.
+Use only the text between <partial_summaries> tags. Do not add facts, names, dates, disputes, or legal claims that are not present.
+If the partial summaries are not enough to summarize, return exactly: UNABLE_TO_SUMMARIZE_PDF
 
 Output format exactly:
 Overview:
@@ -203,7 +226,40 @@ Key Facts:
 Legal Points:
 Conclusion:
 
-${summaryText}`;
+<partial_summaries>
+${summaryText}
+</partial_summaries>`;
+}
+
+function getSignificantWords(text) {
+  const matches = normalizeText(text).toLowerCase().match(/[a-z0-9][a-z0-9'/-]{3,}/g) || [];
+  return [...new Set(matches.filter((word) => !SUMMARY_STOPWORDS.has(word)))];
+}
+
+function validateGeneratedSummary(summary, sourceText) {
+  const normalizedSummary = normalizeText(summary);
+
+  if (!normalizedSummary || normalizedSummary === 'UNABLE_TO_SUMMARIZE_PDF') {
+    throw new Error('AI could not summarize the extracted PDF text');
+  }
+
+  if (HALLUCINATION_PATTERNS.some((pattern) => pattern.test(normalizedSummary))) {
+    throw new Error(UNGROUNDED_SUMMARY_MESSAGE);
+  }
+
+  const sourceWords = new Set(getSignificantWords(sourceText));
+  const summaryWords = getSignificantWords(normalizedSummary);
+
+  if (summaryWords.length < 4) {
+    throw new Error('AI returned an incomplete summary');
+  }
+
+  const groundedWords = summaryWords.filter((word) => sourceWords.has(word));
+  const groundedRatio = groundedWords.length / summaryWords.length;
+
+  if (groundedWords.length < 3 || groundedRatio < 0.2) {
+    throw new Error(UNGROUNDED_SUMMARY_MESSAGE);
+  }
 }
 
 async function summarizeTextChunks(text, deadline = createSummaryDeadline()) {
@@ -220,12 +276,17 @@ async function summarizeTextChunks(text, deadline = createSummaryDeadline()) {
   const summaries = [];
 
   for (const chunk of chunks) {
-    summaries.push(await callOllamaGenerate(buildChunkPrompt(chunk), deadline));
+    const chunkSummary = await callOllamaGenerate(buildChunkPrompt(chunk), deadline);
+    validateGeneratedSummary(chunkSummary, chunk);
+    summaries.push(chunkSummary);
   }
+
+  const summary = await mergeSummaries(summaries, deadline);
+  validateGeneratedSummary(summary, text);
 
   return {
     chunkCount: chunks.length,
-    summary: await mergeSummaries(summaries, deadline),
+    summary,
   };
 }
 
@@ -273,20 +334,24 @@ function buildCaseText(caseData) {
   ].filter(Boolean).join('\n'));
 }
 
+function looksLikeKnownHallucination(text) {
+  return HALLUCINATION_PATTERNS.some((pattern) => pattern.test(normalizeText(text)));
+}
+
 async function summarizeCase(caseId, currentUser, deadline = createSummaryDeadline(), options = {}) {
   const caseData = await getCaseById(caseId, currentUser);
+  const pdfName = pickLatestPdfFilename(caseData.documents || []);
 
-  if (caseData.summary && !options.force) {
+  if (caseData.summary && !options.force && !looksLikeKnownHallucination(caseData.summary)) {
     return {
       chunkCount: 0,
       summary: caseData.summary,
-      source: pickLatestPdfFilename(caseData.documents || []) ? 'pdf' : 'text',
-      document: pickLatestPdfFilename(caseData.documents || []),
+      source: pdfName ? 'pdf' : 'text',
+      document: pdfName,
       cached: true,
     };
   }
 
-  const pdfName = pickLatestPdfFilename(caseData.documents || []);
   let result;
 
   if (pdfName) {
@@ -348,8 +413,8 @@ export default async function aiRoutes(fastify) {
       return sendSuccess(reply, {
         data: {
           summary: result.summary,
-          descriptionSummary: result.summary,
-          documentSummary: '',
+          descriptionSummary: result.source === 'pdf' ? '' : result.summary,
+          documentSummary: result.source === 'pdf' ? result.summary : '',
           status: 'success',
           source: result.source,
           document: result.document,
