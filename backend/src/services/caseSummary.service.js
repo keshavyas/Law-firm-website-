@@ -10,9 +10,10 @@ import { generateSummaryViaNgrok } from './ollamaNgrok.service.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, '..', '..', 'uploads');
-const PDF_CHUNK_SIZE = 1200;
-const MAX_CHUNKS = 80;
-const MERGE_BATCH_SIZE = 8;
+const PDF_CHUNK_SIZE = Number.parseInt(process.env.AI_PDF_CHUNK_SIZE || '3000', 10);
+const MAX_CHUNKS = Number.parseInt(process.env.AI_MAX_CHUNKS || '14', 10);
+const OLLAMA_CALL_TIMEOUT_MS = Number.parseInt(process.env.OLLAMA_CALL_TIMEOUT_MS || '90000', 10);
+const MERGE_BATCH_SIZE = 6;
 
 function pickLatestPdfFilename(documents = []) {
   for (let i = documents.length - 1; i >= 0; i--) {
@@ -48,9 +49,8 @@ async function mergeSummaries(summaries) {
     for (let i = 0; i < pending.length; i += MERGE_BATCH_SIZE) {
       const batch = pending.slice(i, i + MERGE_BATCH_SIZE).join('\n\n');
       next.push(await generateSummaryViaNgrok({
-        model: 'phi',
         prompt: buildMergePrompt(batch),
-        timeoutMs: 60000,
+        timeoutMs: OLLAMA_CALL_TIMEOUT_MS,
       }));
     }
 
@@ -58,9 +58,8 @@ async function mergeSummaries(summaries) {
   }
 
   return await generateSummaryViaNgrok({
-    model: 'phi',
     prompt: buildMergePrompt(pending.join('\n\n')),
-    timeoutMs: 60000,
+    timeoutMs: OLLAMA_CALL_TIMEOUT_MS,
   });
 }
 
@@ -94,9 +93,8 @@ export async function summarizeCasePdf({ caseId, currentUser }) {
   const chunkSummaries = [];
   for (let idx = 0; idx < chunks.length; idx++) {
     const summary = await generateSummaryViaNgrok({
-      model: 'phi',
       prompt: buildChunkPrompt(chunks[idx]),
-      timeoutMs: 45000,
+      timeoutMs: OLLAMA_CALL_TIMEOUT_MS,
     });
     chunkSummaries.push(`Chunk ${idx + 1} Summary:\n${summary}`.trim());
   }

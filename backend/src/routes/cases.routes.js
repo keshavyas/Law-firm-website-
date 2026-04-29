@@ -145,6 +145,7 @@ export default async function casesRoutes(fastify) {
 
       // Add filename to the JSONB documents array and save
       found.documents   = [...found.documents, filename];
+      found.summary     = null;
       found.lastUpdated = new Date().toISOString().split('T')[0];
       await found.save();
 

@@ -24,7 +24,10 @@ function toOllamaError(err) {
   return new AppError(`Ollama unreachable: ${err?.message || 'unknown error'}`, 503, 'OLLAMA_UNAVAILABLE');
 }
 
-export async function generateSummaryViaNgrok({ model = 'phi', prompt, timeoutMs = 45000 }) {
+const DEFAULT_OLLAMA_TIMEOUT_MS = Number.parseInt(process.env.OLLAMA_CALL_TIMEOUT_MS || '90000', 10);
+const DEFAULT_NUM_PREDICT = Number.parseInt(process.env.OLLAMA_NUM_PREDICT || '320', 10);
+
+export async function generateSummaryViaNgrok({ model = process.env.AI_MODEL || 'phi', prompt, timeoutMs = DEFAULT_OLLAMA_TIMEOUT_MS }) {
   const url = resolveNgrokGenerateUrl();
   if (!prompt || !prompt.trim()) {
     throw new AppError('Prompt is required', 500, 'INTERNAL_ERROR');
@@ -33,7 +36,16 @@ export async function generateSummaryViaNgrok({ model = 'phi', prompt, timeoutMs
   try {
     const res = await axios.post(
       url,
-      { model, prompt, stream: false },
+      {
+        model,
+        prompt,
+        stream: false,
+        options: {
+          num_predict: DEFAULT_NUM_PREDICT,
+          temperature: 0.2,
+          top_p: 0.9,
+        },
+      },
       {
         timeout: timeoutMs,
         headers: {
