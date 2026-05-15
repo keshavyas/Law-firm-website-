@@ -5,17 +5,22 @@ export default function SummaryPage({ caseId, onBack }) {
   const [summary, setSummary] = useState('');
   const [documentSummary, setDocumentSummary] = useState('');
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState('');
  
   const [source, setSource] = useState('text');   // 'text' | 'pdf' | 'image'
 
-  const fetchCaseSummary = useCallback(async () => {
+  const fetchCaseSummary = useCallback(async (force = false) => {
     try {
-      setLoading(true);
+      if (force) {
+        setRegenerating(true);
+      } else {
+        setLoading(true);
+        setSummary('');
+        setDocumentSummary('');
+      }
       setError('');
-      setSummary('');
-      setDocumentSummary('');
-      const res = await api.summarize(caseId);
+      const res = await api.summarize(caseId, force ? { force: true } : {});
       if (res.data?.status === 'error') {
         throw new Error(res.data.summary || 'Failed to generate summary');
       }
@@ -27,6 +32,7 @@ export default function SummaryPage({ caseId, onBack }) {
       setError(err.message || 'Failed to generate summary');
     } finally {
       setLoading(false);
+      setRegenerating(false);
     }
   }, [caseId]);
 
@@ -96,9 +102,19 @@ export default function SummaryPage({ caseId, onBack }) {
         ) : summary ? (
           <div className="p-8">
             {/* Source badge */}
-            <div className="flex items-center gap-2 mb-5 pb-4 border-b border-stone-100">
+            <div className="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-stone-100">
+              <div className="flex items-center gap-2">
               <span className="text-lg">{sourceIcon[source] || '📋'}</span>
               <span className="text-xs text-stone-500 font-medium">Source: {sourceLabel[source] || 'Case Description'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchCaseSummary(true)}
+                disabled={regenerating}
+                className="px-3 py-1.5 border border-stone-200 rounded-lg text-xs font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                {regenerating ? 'Regenerating...' : 'Regenerate AI Summary'}
+              </button>
             </div>
             <div>{renderSummary(summary)}</div>
           </div>
