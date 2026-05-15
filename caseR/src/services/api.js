@@ -188,10 +188,10 @@ export const api = {
 
   // AI SUMMARIZE — case description text
   // POST /api/ai/summarize
-  summarize: (caseId) =>
+  summarize: (caseId, options = {}) =>
     request('/api/ai/summarize', {
       method: 'POST',
-      body:   JSON.stringify({ case_id: caseId }),
+      body:   JSON.stringify({ case_id: caseId, ...options }),
     }),
 
   // AI SUMMARIZE — PDF or image file upload
